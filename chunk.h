@@ -23,11 +23,12 @@ class Chunk
 
         void create_face(Vertex& vertex1, Vertex& vertex2, Vertex& vertex3, Vertex& vertex4);
 
-        void update_data();
+        void upload_data();
 
     public:
         std::vector<unsigned int> indices;
         unsigned int EBO, VAO, VBO;
+        bool isModified;                            // 标志区块内的数据是否发生变化
 
         Chunk(){};
 
@@ -42,6 +43,10 @@ class Chunk
         {
             return chunkBlocks[chunkSize-1-j][i][k];
         }
+
+        void update_data(Chunk& left, Chunk& right, Chunk& forward, Chunk& back);
+
+
 };
 
 glm::vec2 Chunk::get_tex_coord(int blockType, int face)
@@ -70,7 +75,7 @@ void Chunk::create_face(Vertex& vertex1, Vertex& vertex2, Vertex& vertex3, Verte
     return ;
 }
 
-void Chunk::update_data()
+void Chunk::upload_data()
 {
     vertices.shrink_to_fit();
     indices.shrink_to_fit();
@@ -119,7 +124,12 @@ Chunk::Chunk(PerlinNoice& perlinNoice, int x, int y)
     }
 
     // 每个方块的索引即为其在该区块中的minCoord
+    isModified = true;
 
+}
+
+void Chunk::update_data(Chunk& left, Chunk& right, Chunk& forward, Chunk& back)
+{
     // 只渲染和空气方块接触的表面，其它表面隐藏
     for(int i = chunkSize-1; i >= 0; i--)
     {
@@ -133,7 +143,7 @@ Chunk::Chunk(PerlinNoice& perlinNoice, int x, int y)
                     continue;
                 }
                 // 后
-                if(i-1 >= 0 && chunkBlocks[i-1][j][k] == AIR)
+                if((i-1 >= 0 && chunkBlocks[i-1][j][k] == AIR) || (i == 0  && back.getBlockType(j, 0, k) == AIR))
                 {
                     Vertex vertex1; // 左上
                     vertex1.Position = glm::vec3(j, k+1, chunkSize-1-i);
@@ -152,10 +162,9 @@ Chunk::Chunk(PerlinNoice& perlinNoice, int x, int y)
                     vertex4.Normal = glm::vec3(-1, 0, 0);
                     vertex4.Texcoord = vertex1.Texcoord+glm::vec2(1.0f/16.0f, -1.0f/16.0f);
                     create_face(vertex1, vertex2, vertex3, vertex4);
-
                 }
                 // 前
-                if(i+1 < chunkSize && chunkBlocks[i+1][j][k] == AIR)
+                if((i+1 < chunkSize && chunkBlocks[i+1][j][k] == AIR) || (i == chunkSize-1  && forward.getBlockType(j, chunkSize-1, k) == AIR))
                 {
                     Vertex vertex1; // 左上
                     vertex1.Position = glm::vec3(j, k+1, chunkSize-1-(i+1));
@@ -175,7 +184,8 @@ Chunk::Chunk(PerlinNoice& perlinNoice, int x, int y)
                     vertex4.Texcoord = vertex1.Texcoord+glm::vec2(1.0f/16.0f, -1.0f/16.0f);
                     create_face(vertex1, vertex2, vertex3, vertex4);
                 }
-                if(j-1 >= 0 && chunkBlocks[i][j-1][k] == AIR)
+                // 左
+                if((j-1 >= 0 && chunkBlocks[i][j-1][k] == AIR) || (j == 0  && left.getBlockType(chunkSize-1, chunkSize-1-i, k) == AIR))
                 {
                     Vertex vertex1; // 左上
                     vertex1.Position = glm::vec3(j, k+1, chunkSize-1-i);
@@ -195,7 +205,8 @@ Chunk::Chunk(PerlinNoice& perlinNoice, int x, int y)
                     vertex4.Texcoord = vertex1.Texcoord+glm::vec2(1.0f/16.0f, -1.0f/16.0f);
                     create_face(vertex1, vertex2, vertex3, vertex4);
                 }
-                if(j+1 < chunkSize && chunkBlocks[i][j+1][k] == AIR)
+                // 右
+                if((j+1 < chunkSize && chunkBlocks[i][j+1][k] == AIR) || (j == chunkSize-1 && right.getBlockType(0, chunkSize-1-i, k) == AIR))
                 {
                     Vertex vertex1; // 左上
                     vertex1.Position = glm::vec3(j+1, k+1, chunkSize-1-i);
@@ -258,8 +269,9 @@ Chunk::Chunk(PerlinNoice& perlinNoice, int x, int y)
             }
         }
     }
-
-    update_data();
+    upload_data();
+    isModified = false;
+    return ;
 }
 
 #endif

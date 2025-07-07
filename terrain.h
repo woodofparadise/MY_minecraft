@@ -110,6 +110,32 @@ void Terrain::update_terrain(glm::vec3 position)
                 Chunk chunk(perlinNoice, chunk_index_x+i, chunk_index_z+j);
                 terrainMap[index] = chunk;
             }
+            if(terrainMap[index].isModified)
+            {
+                for(int x = -1; x <= 1; x += 2)
+                {
+                    pair<int, int> adjIndex(index.first+x, index.second);
+                    if(terrainMap.find(adjIndex) == terrainMap.end())
+                    {
+                        Chunk chunk(perlinNoice, adjIndex.first, adjIndex.second);
+                        terrainMap[adjIndex] = chunk;
+                    }
+                }
+                for(int y = -1; y <= 1; y += 2)
+                {
+                    pair<int, int> adjIndex(index.first, index.second+y);
+                    if(terrainMap.find(adjIndex) == terrainMap.end())
+                    {
+                        Chunk chunk(perlinNoice, adjIndex.first, adjIndex.second);
+                        terrainMap[adjIndex] = chunk;
+                    }
+                }
+                pair<int, int> left(index.first-1, index.second); // 左
+                pair<int, int> right(index.first+1, index.second); // 右
+                pair<int, int> forward(index.first, index.second-1); // 前
+                pair<int, int> back(index.first, index.second+1); // 后
+                terrainMap[index].update_data(terrainMap[left], terrainMap[right], terrainMap[forward], terrainMap[back]);
+            }
         }
     }
 }
