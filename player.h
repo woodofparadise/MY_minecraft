@@ -98,7 +98,7 @@ const glm::vec2 textureOffset[24] =
     glm::vec2(12.0f/64.0f, 0.0f/64.0f), glm::vec2(12.0f/64.0f, 12.0f/64.0f), glm::vec2(16.0f/64.0f, 12.0f/64.0f), glm::vec2(16.0f/64.0f, 0.0f)
 };
 
-const float gravity = -9.8f/2;   // 重力加速度
+const float gravity = -9.8f/10;   // 重力加速度
 
 class Player
 {
@@ -111,7 +111,7 @@ class Player
         glm::vec3 playerSize = glm::vec3(0.6f, 1.8f, 0.6f);
         bool isOnGround = false;            // 是否在地面上
         bool isJumping = false;     // 是否正在跳跃
-        float jumpForce = 2.0f;     // 跳跃初速度
+        float jumpForce = 0.1f;     // 跳跃初速度
     
     public:
         unsigned int EBO, VAO, VBO;
@@ -358,6 +358,7 @@ void Player::drawPlayer(Shader& playerShader)
     glBindVertexArray(VAO);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
     glDrawElements(GL_TRIANGLES, static_cast<unsigned int>(indices.size()), GL_UNSIGNED_INT, 0);
+    glBindVertexArray(0);
 }
 
 void Player::move(int mode, float deltaTime)

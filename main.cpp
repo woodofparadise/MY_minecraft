@@ -3,6 +3,7 @@
 #include <iostream>
 #include "Shader.h"
 #include "camera.h"
+#include "itemSelection.h"
 #include "collision.h"
 #include "terrain.h"
 #include "texture.h"
@@ -124,6 +125,8 @@ int main()
 	    return -1;
     }
 
+    Shader selectionShader("./shaders/selectionShader.vs", "./shaders/selectionShader.fs");
+
     Shader blockShader("./shaders/blockShader.vs", "./shaders/blockShader.fs");
     player.initGLResources("./steve.png");
     Terrain terrain(666, player.position, "./DefaultPack2.png");
@@ -159,6 +162,15 @@ int main()
         blockShader.setMat4("projection", projection);
         terrain.draw_terrain(blockShader);
         player.drawPlayer(blockShader);
+        
+        glm::ivec3 selectedBlock;
+        // 检测选中的方块
+        if (raycast(player.position+glm::vec3(0.0f, 1.6f, 0.0f), player.camera.cameraFront, 4.0f, terrain, selectedBlock)) 
+        {
+            // 渲染选中效果
+            // cout << selectedBlock.x << " " << selectedBlock.y << " " << selectedBlock.z << endl;
+            renderSelectionBox(selectedBlock, selectionShader, projection, view);
+        }
         // 检查并调用事件，交换缓冲
 	    glfwSwapBuffers(window); // 交换颜色缓冲
 	    glfwPollEvents(); // 检查有无触发事件，比如键盘输入、鼠标移动
