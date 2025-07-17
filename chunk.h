@@ -46,6 +46,8 @@ class Chunk
 
         void update_data(Chunk& left, Chunk& right, Chunk& forward, Chunk& back);
 
+        bool set_block(int i, int j, int k, int blockType);
+
 
 };
 
@@ -130,6 +132,9 @@ Chunk::Chunk(PerlinNoice& perlinNoice, int x, int y)
 
 void Chunk::update_data(Chunk& left, Chunk& right, Chunk& forward, Chunk& back)
 {
+    
+    vector<Vertex>().swap(vertices);
+    vector<unsigned int>().swap(indices);
     // 只渲染和空气方块接触的表面，其它表面隐藏
     for(int i = chunkSize-1; i >= 0; i--)
     {
@@ -272,6 +277,17 @@ void Chunk::update_data(Chunk& left, Chunk& right, Chunk& forward, Chunk& back)
     upload_data();
     isModified = false;
     return ;
+}
+
+bool Chunk::set_block(int i, int j, int k, int blockType)
+{
+    if(k < 0 || k >= chunkHeight)
+    {
+        return false;
+    }
+    isModified = true;
+    chunkBlocks[chunkSize-1-j][i][k] = blockType;
+    return true;
 }
 
 #endif

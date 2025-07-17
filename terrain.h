@@ -42,6 +42,8 @@ class Terrain
         int getHeight(glm::vec3 position);
 
         int getBlockType(const glm::vec3& position);
+
+        bool destroy_block(glm::ivec3& selectedBlock);
         
 };
 
@@ -96,6 +98,7 @@ void Terrain::draw_terrain(Shader& blockShader)
     }
 }
 
+// 加载区块数据的时候，区块边界方块的渲染需要考虑相邻区块的情况
 void Terrain::update_terrain(glm::vec3 position)
 {
     chunk_index_x = floor((float)(position.x+chunkSize/2) / (float)chunkSize);
@@ -138,6 +141,19 @@ void Terrain::update_terrain(glm::vec3 position)
             }
         }
     }
+}
+
+bool Terrain::destroy_block(glm::ivec3& selectedBlock)
+{
+    chunk_index_x = floor((float)(selectedBlock.x+chunkSize/2) / (float)chunkSize);
+    chunk_index_z = floor((float)(selectedBlock.z+chunkSize/2) / (float)chunkSize);
+    pair<int, int> index(chunk_index_x, chunk_index_z);
+    if(terrainMap.find(index) == terrainMap.end())
+    {
+        Chunk chunk(perlinNoice, chunk_index_x, chunk_index_z);
+        terrainMap[index] = chunk;
+    }
+    return terrainMap[index].set_block(selectedBlock.x-chunk_index_x*chunkSize+chunkSize/2, selectedBlock.z-chunk_index_z*chunkSize+chunkSize/2, selectedBlock.y, AIR);
 }
 
 #endif
