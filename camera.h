@@ -29,48 +29,48 @@ public:
 
     Camera()
     {
-        InitCamera(glm::vec3(0.0f, 0.0f, 0.0f));
+        init_camera(glm::vec3(0.0f, 0.0f, 0.0f));
     }
 
-    void InitCamera(glm::vec3 position, glm::vec3 Up = glm::vec3(0, 1, 0), float near = 0.1f, float far = 1000.0f, float pitch = 0.0f, float yaw = 90.0f, float width = 800, float height = 600, float fov = 45.0);
+    void init_camera(glm::vec3 position, glm::vec3 Up = glm::vec3(0, 1, 0), float near = 0.1f, float far = 1000.0f, float pitch = 0.0f, float yaw = 90.0f, float width = 800, float height = 600, float fov = 45.0);
 
     // 尝试了一种基于屏幕中心坐标的视角变换
-    void processMouseMovement1(float xPos, float yPos);
+    void process_mouse_movement_1(float xPos, float yPos);
 
     // 基于偏移的视角变换
-    void processMouseMovement2(float xoffset, float yoffset);
+    void process_mouse_movement_2(float xoffset, float yoffset);
 
-    void processMouseScroll(float yOffset);
+    void process_mouse_scroll(float yOffset);
 
-    void processKeyboard(int mode, float deltaTime);
+    void process_keyboard(int mode, float deltaTime);
 
-    glm::mat4 getViewMatrix()
+    glm::mat4 get_view_matrix()
     {
-        updateView();
+        update_view();
         return viewMatrix; 
     }
 
-    glm::mat4 getProjectionMatrix()
+    glm::mat4 get_projection_matrix()
     {
-        updateProjection();
+        update_projection();
         return projectionMatrix;
     }
 
-    void updateWindow(float width, float height)
+    void update_window(float width, float height)
     {
         screenWidth = width;
         screenHeight = height;
     }
 
-    void setPosition(glm::vec3 Position)
+    void set_position(glm::vec3 Position)
     {
         cameraPos = Position;
     }
 
 private:
-    void updateView();
+    void update_view();
 
-    void updateProjection()
+    void update_projection()
     {
         projectionMatrix = glm::mat4(1.0f);
         projectionMatrix = glm::perspective(glm::radians(visualField), (float)screenWidth / (float)screenHeight, zNear, zFar);
@@ -102,11 +102,11 @@ Camera::Camera(glm::vec3 position, glm::vec3 Up, float width, float height, floa
     Pitch = 0.0f;
 
     // 更新投影矩阵和视图矩阵
-    updateProjection();
-    updateView();
+    update_projection();
+    update_view();
 }
 
-void Camera::InitCamera(glm::vec3 position, glm::vec3 Up, float near, float far, float pitch, float yaw, float width, float height, float fov)
+void Camera::init_camera(glm::vec3 position, glm::vec3 Up, float near, float far, float pitch, float yaw, float width, float height, float fov)
 {
     cameraPos = position;
     cameraUp = Up;
@@ -120,11 +120,11 @@ void Camera::InitCamera(glm::vec3 position, glm::vec3 Up, float near, float far,
     Pitch = pitch;
 
     // 更新投影矩阵和视图矩阵
-    updateProjection();
-    updateView();
+    update_projection();
+    update_view();
 }
 
-void Camera::processMouseMovement1(float xPos, float yPos)
+void Camera::process_mouse_movement_1(float xPos, float yPos)
 {
     float xoffset = xPos - screenWidth/2;
     float yoffset = screenHeight/2 - yPos;
@@ -141,7 +141,7 @@ void Camera::processMouseMovement1(float xPos, float yPos)
     // updateView();
 }
 
-void Camera::processMouseMovement2(float xoffset, float yoffset)
+void Camera::process_mouse_movement_2(float xoffset, float yoffset)
 {
     // float xoffset = xPos - 0.5;
     // float yoffset = 0.5 - yPos;
@@ -160,7 +160,7 @@ void Camera::processMouseMovement2(float xoffset, float yoffset)
     // updateView();
 }
 
-void Camera::processMouseScroll(float yOffset)
+void Camera::process_mouse_scroll(float yOffset)
 {
     visualField -= yOffset;
     visualField = std::max(1.0f, visualField);
@@ -168,7 +168,7 @@ void Camera::processMouseScroll(float yOffset)
     // updateProjection();
 }
 
-void Camera::processKeyboard(int mode, float deltaTime)
+void Camera::process_keyboard(int mode, float deltaTime)
 {   
     switch(mode)
     {
@@ -180,7 +180,7 @@ void Camera::processKeyboard(int mode, float deltaTime)
     // updateView();
 }
 
-void Camera::updateView()
+void Camera::update_view()
 {
     cameraFront.x = cos(glm::radians(Pitch)) * cos(glm::radians(Yaw));
     cameraFront.z = cos(glm::radians(Pitch)) * sin(glm::radians(Yaw));

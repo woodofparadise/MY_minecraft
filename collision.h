@@ -39,10 +39,10 @@ class AABB
 
     AABB(const glm::vec3& position, const glm::vec3& size)
     {
-        updateAABB(position, size);
+        update_AABB(position, size);
     }
 
-    void updateAABB(const glm::vec3& position, const glm::vec3& size) 
+    void update_AABB(const glm::vec3& position, const glm::vec3& size) 
     {
         minCoord = position - size / 2.0f;
         maxCoord = position + size / 2.0f;
@@ -51,7 +51,7 @@ class AABB
 
 
     // 绘制碰撞箱(测试版本)
-    void drawAABB(Shader& shader)
+    void draw_AABB(Shader& shader)
     {
         glGenVertexArrays(1, &VAO);
         glGenBuffers(1, &VBO);
@@ -77,7 +77,7 @@ class AABB
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::translate(model, minCoord);
         model = glm::scale(model, maxCoord-minCoord);
-        shader.setMat4("model", model);
+        shader.set_mat4("model", model);
 
         // 启用线框模式
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -92,7 +92,7 @@ class AABB
     }
 };
 
-bool checkCollision(const AABB& player, const glm::ivec3& blockPos) 
+bool check_collision(const AABB& player, const glm::ivec3& blockPos) 
 {
     AABB block(glm::vec3(blockPos)+glm::vec3(0.5f, 0.5f, 0.5f), glm::vec3(1.0f));
     return (player.minCoord.x < block.maxCoord.x && player.maxCoord.x > block.minCoord.x) &&
@@ -100,7 +100,7 @@ bool checkCollision(const AABB& player, const glm::ivec3& blockPos)
            (player.minCoord.z < block.maxCoord.z && player.maxCoord.z > block.minCoord.z);
 }
 
-float calculateOverlap(const AABB& playerBox, const glm::ivec3& blockPos, int axis) 
+float calculate_overlap(const AABB& playerBox, const glm::ivec3& blockPos, int axis) 
 {
     // 计算玩家与方块在指定轴上的重叠量
     float blockMin = blockPos[axis];
@@ -121,7 +121,7 @@ float calculateOverlap(const AABB& playerBox, const glm::ivec3& blockPos, int ax
     return 0.0f;
 }
 
-void resolveCollisions(glm::vec3& position, const glm::vec3& playerSize, glm::vec3& velocity, AABB& playerBox, Terrain& terrain) 
+void resolve_collisions(glm::vec3& position, const glm::vec3& playerSize, glm::vec3& velocity, AABB& playerBox, Terrain& terrain) 
 { 
     
     // 分别处理每个轴
@@ -129,7 +129,7 @@ void resolveCollisions(glm::vec3& position, const glm::vec3& playerSize, glm::ve
     { 
         axis = (axis+1)%3;
         position[axis] += velocity[axis];
-        playerBox.updateAABB(position+glm::vec3(0.0f, 0.9f, 0.0f), playerSize);
+        playerBox.update_AABB(position+glm::vec3(0.0f, 0.9f, 0.0f), playerSize);
         // 只检查可能碰撞的方块
         glm::ivec3 minBlock = glm::floor(playerBox.minCoord);
         glm::ivec3 maxBlock = glm::floor(playerBox.maxCoord);
@@ -141,9 +141,9 @@ void resolveCollisions(glm::vec3& position, const glm::vec3& playerSize, glm::ve
                 for (int z = minBlock.z; z <= maxBlock.z; ++z) 
                 {
                     glm::vec3 blockPos = glm::vec3(x, y, z);
-                    if (terrain.getBlockType(blockPos) != AIR) 
+                    if (terrain.get_block_type(blockPos) != AIR) 
                     {
-                        if (checkCollision(playerBox, blockPos)) 
+                        if (check_collision(playerBox, blockPos)) 
                         {
                             position[axis] -= velocity[axis];
                             velocity[axis] = 0.0f;

@@ -8,7 +8,7 @@
 #include <glm/gtc/type_ptr.hpp>
 
 // 辅助函数：计算射线与下一个整数平面的交点
-float intbound(float s, float ds) 
+float int_bound(float s, float ds) 
 {
     // s: 起点
     // ds: 射线方向
@@ -35,7 +35,7 @@ float intbound(float s, float ds)
     return t;
 }
 
-bool raycast(glm::vec3 origin, glm::vec3 direction, float maxDistance, Terrain& terrain, glm::ivec3& hitBlock) 
+bool raycast_step(glm::vec3 origin, glm::vec3 direction, float maxDistance, Terrain& terrain, glm::ivec3& hitBlock) 
 {
     // origin: 射线起点，即玩家头部位置
     // direction: 射线方向
@@ -52,9 +52,9 @@ bool raycast(glm::vec3 origin, glm::vec3 direction, float maxDistance, Terrain& 
     
     // 射线从当前位置到下一个整数坐标平面的时间(分为三个维度)
     glm::vec3 tMax = glm::vec3(
-        intbound(origin.x, direction.x),
-        intbound(origin.y, direction.y),
-        intbound(origin.z, direction.z)
+        int_bound(origin.x, direction.x),
+        int_bound(origin.y, direction.y),
+        int_bound(origin.z, direction.z)
     );
     
     // 后续到达的整数平面可以直接通过斜率计算
@@ -68,7 +68,7 @@ bool raycast(glm::vec3 origin, glm::vec3 direction, float maxDistance, Terrain& 
     
     while (max(distance.x, max(distance.y, distance.z)) <= maxDistance) 
     {
-        if (terrain.getBlockType(glm::vec3(currentBlock)+glm::vec3(0.5f)) != AIR) 
+        if (terrain.get_block_type(glm::vec3(currentBlock)+glm::vec3(0.5f)) != AIR) 
         {
             hitBlock = currentBlock;
             return true;
@@ -115,10 +115,11 @@ static unsigned int selectionVAO = 0, selectionVBO = 0;
 static bool selectionBoxInitialized = false;
 
 // 渲染选中方块的轮廓
-void renderSelectionBox(const glm::ivec3& blockPos, Shader& selectionShader, glm::mat4& projection, glm::mat4& view) 
+void render_selection_box(const glm::ivec3& blockPos, Shader& selectionShader, glm::mat4& projection, glm::mat4& view) 
 {
     // 首次调用时初始化VAO和VBO
-    if (!selectionBoxInitialized) {
+    if (!selectionBoxInitialized) 
+    {
         // 创建一个标准大小的线框（中心在原点，大小为1x1x1）
         std::vector<glm::vec3> vertices = {
             // 底部（z=-0.05平面）
@@ -138,7 +139,7 @@ void renderSelectionBox(const glm::ivec3& blockPos, Shader& selectionShader, glm
             glm::vec3(1.05f, -0.05f, -0.05f), glm::vec3(1.05f, -0.05f, 1.05f),  // 前右竖线
             glm::vec3(1.05f, 1.05f, -0.05f), glm::vec3(1.05f, 1.05f, 1.05f),   // 后右竖线
             glm::vec3(-0.05f, 1.05f, -0.05f), glm::vec3(-0.05f, 1.05f, 1.05f)   // 后左竖线
-    };
+        };
 
         // 创建并绑定VAO和VBO
         glGenVertexArrays(1, &selectionVAO);
@@ -162,15 +163,15 @@ void renderSelectionBox(const glm::ivec3& blockPos, Shader& selectionShader, glm
     
     // 使用线框着色器
     selectionShader.use();
-    selectionShader.setMat4("projection", projection);
-    selectionShader.setMat4("view", view);
+    selectionShader.set_mat4("projection", projection);
+    selectionShader.set_mat4("view", view);
     
     // 创建模型矩阵，将标准立方体变换到目标位置和大小
     glm::mat4 model = glm::mat4(1.0f);
     // 平移到方块位置
     model = glm::translate(model, glm::vec3(blockPos));
     
-    selectionShader.setMat4("model", model);
+    selectionShader.set_mat4("model", model);
     
     // 渲染线框
     glBindVertexArray(selectionVAO);

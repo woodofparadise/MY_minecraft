@@ -120,24 +120,24 @@ class Player
         AABB playerBox;
         Player();
 
-        void initGLResources(char const* path);
+        void upload_data(char const* path);
         
-        void bindPlayerTexture(Shader& playerShader);
+        void bind_player_texture(Shader& playerShader);
 
-        void drawPlayer(Shader& playerShader);
+        void draw_player(Shader& playerShader);
 
         void move(int mode, float deltaTime);
 
-        void updatePosition(Terrain& terrain, float& deltaTime);
+        void update_position(Terrain& terrain, float& deltaTime);
 
-        void setPosition(glm::vec3 initPosition)
+        void set_position(glm::vec3 initPosition)
         {
             position = initPosition;
-            playerBox.updateAABB(position+glm::vec3(0.0f, 0.9f, 0.0f), playerSize);
-            camera.setPosition(position+glm::vec3(0.0f, ARM_LEG_SIZE_Y+BODY_SIZE_Y+HEAD_SIZE/2, HEAD_SIZE));
+            playerBox.update_AABB(position+glm::vec3(0.0f, 0.9f, 0.0f), playerSize);
+            camera.set_position(position+glm::vec3(0.0f, ARM_LEG_SIZE_Y+BODY_SIZE_Y+HEAD_SIZE/2, HEAD_SIZE));
         }
 
-        void switchMode()
+        void switch_mode()
         {
             cameraMode = false;
         }
@@ -311,7 +311,7 @@ Player::Player()
     indices.shrink_to_fit();
 }
 
-void Player::initGLResources(char const* path)
+void Player::upload_data(char const* path)
 {
     glGenVertexArrays(1, &VAO);
     glBindVertexArray(VAO);
@@ -332,11 +332,11 @@ void Player::initGLResources(char const* path)
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, Texcoord));
     glEnableVertexAttribArray(0);
     
-    playerTexture.loadTexture(path);
+    playerTexture.load_texture(path);
     return ;
 }
 
-void Player::bindPlayerTexture(Shader& playerShader)
+void Player::bind_player_texture(Shader& playerShader)
 {
     playerShader.use();
     glActiveTexture(GL_TEXTURE1);
@@ -344,15 +344,15 @@ void Player::bindPlayerTexture(Shader& playerShader)
     glActiveTexture(GL_TEXTURE0);
 }
 
-void Player::drawPlayer(Shader& playerShader)
+void Player::draw_player(Shader& playerShader)
 {
     playerShader.use();
     // glActiveTexture(GL_TEXTURE1);
     // glBindTexture(GL_TEXTURE_2D, playerTexture.TextureID);
-    playerShader.setInt("textureUsed", 1);
+    playerShader.set_int("textureUsed", 1);
     glm::mat4 model = glm::mat4(1.0f);
     model = glm::translate(model, position);
-    playerShader.setMat4("model", model);
+    playerShader.set_mat4("model", model);
     // model = glm::rotate(model, glm::radians(-60.0f), glm::vec3(1.0f, 0.0f, 0.0f));
     // model = glm::scale(model, glm::vec3(0.1f));
     glBindVertexArray(VAO);
@@ -383,13 +383,13 @@ void Player::jump()
     }
 }
 
-void Player::updatePosition(Terrain& terrain, float& deltaTime)
+void Player::update_position(Terrain& terrain, float& deltaTime)
 {
     // 根据速度更新位置
-    resolveCollisions(position, playerSize, velocity, playerBox, terrain);
+    resolve_collisions(position, playerSize, velocity, playerBox, terrain);
     // 更新碰撞箱
-    playerBox.updateAABB(position+glm::vec3(0.0f, 0.9f, 0.0f), playerSize);
-    isOnGround = (terrain.getBlockType(position - glm::vec3(0.0f, 0.1f, 0.0f)) != AIR);
+    playerBox.update_AABB(position+glm::vec3(0.0f, 0.9f, 0.0f), playerSize);
+    isOnGround = (terrain.get_block_type(position - glm::vec3(0.0f, 0.1f, 0.0f)) != AIR);
     // 在地面并且速度向下的时候重置状态
     if (isOnGround && velocity.y <= 0) 
     {
@@ -407,11 +407,11 @@ void Player::updatePosition(Terrain& terrain, float& deltaTime)
     // 更新相机位置
     if(cameraMode)
     {
-        camera.setPosition(position+glm::vec3(0.0f, ARM_LEG_SIZE_Y+BODY_SIZE_Y+HEAD_SIZE/2, HEAD_SIZE));
+        camera.set_position(position+glm::vec3(0.0f, ARM_LEG_SIZE_Y+BODY_SIZE_Y+HEAD_SIZE/2, HEAD_SIZE));
     }
     else
     {
-        camera.setPosition(position+glm::vec3(0.0f, (ARM_LEG_SIZE_Y+BODY_SIZE_Y+HEAD_SIZE/2) * 1.5, -8 * HEAD_SIZE));
+        camera.set_position(position+glm::vec3(0.0f, (ARM_LEG_SIZE_Y+BODY_SIZE_Y+HEAD_SIZE/2) * 1.5, -8 * HEAD_SIZE));
     }
 }
 

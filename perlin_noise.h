@@ -66,10 +66,10 @@ public:
         glm::vec2 distBA = glm::vec2(xf - 1, yf);
         glm::vec2 distBB = glm::vec2(xf - 1, yf - 1);
 
-        double V1 = fastDot(aa, distAA);
-        double V2 = fastDot(ab, distAB);
-        double V3 = fastDot(ba, distBA);
-        double V4 = fastDot(bb, distBB);
+        double V1 = fast_dot(aa, distAA);
+        double V2 = fast_dot(ab, distAB);
+        double V3 = fast_dot(ba, distBA);
+        double V4 = fast_dot(bb, distBB);
 
         double u = fade(xf), v = fade(yf);
         double V12 = V1 + u*(V2-V1);
@@ -80,7 +80,7 @@ public:
         return result;
     }
 
-    double fastDot(int index, glm::vec2 dist)
+    double fast_dot(int index, glm::vec2 dist)
     {
         switch(index & 0x8)
         {

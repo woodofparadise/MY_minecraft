@@ -34,12 +34,12 @@ class Chunk
 
         Chunk(PerlinNoice& perlinNoice, int x, int y);
 
-        int getHeight(int i, int j)
+        int get_height(int i, int j)
         {
             return heightMap[chunkSize-1-j][i];
         }
 
-        int getBlockType(int i, int j, int k)
+        int get_block_type(int i, int j, int k)
         {
             return chunkBlocks[chunkSize-1-j][i][k];
         }
@@ -127,7 +127,6 @@ Chunk::Chunk(PerlinNoice& perlinNoice, int x, int y)
 
     // 每个方块的索引即为其在该区块中的minCoord
     isModified = true;
-
 }
 
 void Chunk::update_data(Chunk& left, Chunk& right, Chunk& forward, Chunk& back)
@@ -148,7 +147,7 @@ void Chunk::update_data(Chunk& left, Chunk& right, Chunk& forward, Chunk& back)
                     continue;
                 }
                 // 后
-                if((i-1 >= 0 && chunkBlocks[i-1][j][k] == AIR) || (i == 0  && back.getBlockType(j, 0, k) == AIR))
+                if((i-1 >= 0 && chunkBlocks[i-1][j][k] == AIR) || (i == 0  && back.get_block_type(j, 0, k) == AIR))
                 {
                     Vertex vertex1; // 左上
                     vertex1.Position = glm::vec3(j, k+1, chunkSize-1-i);
@@ -169,7 +168,7 @@ void Chunk::update_data(Chunk& left, Chunk& right, Chunk& forward, Chunk& back)
                     create_face(vertex1, vertex2, vertex3, vertex4);
                 }
                 // 前
-                if((i+1 < chunkSize && chunkBlocks[i+1][j][k] == AIR) || (i == chunkSize-1  && forward.getBlockType(j, chunkSize-1, k) == AIR))
+                if((i+1 < chunkSize && chunkBlocks[i+1][j][k] == AIR) || (i == chunkSize-1  && forward.get_block_type(j, chunkSize-1, k) == AIR))
                 {
                     Vertex vertex1; // 左上
                     vertex1.Position = glm::vec3(j, k+1, chunkSize-1-(i+1));
@@ -190,7 +189,7 @@ void Chunk::update_data(Chunk& left, Chunk& right, Chunk& forward, Chunk& back)
                     create_face(vertex1, vertex2, vertex3, vertex4);
                 }
                 // 左
-                if((j-1 >= 0 && chunkBlocks[i][j-1][k] == AIR) || (j == 0  && left.getBlockType(chunkSize-1, chunkSize-1-i, k) == AIR))
+                if((j-1 >= 0 && chunkBlocks[i][j-1][k] == AIR) || (j == 0  && left.get_block_type(chunkSize-1, chunkSize-1-i, k) == AIR))
                 {
                     Vertex vertex1; // 左上
                     vertex1.Position = glm::vec3(j, k+1, chunkSize-1-i);
@@ -211,7 +210,7 @@ void Chunk::update_data(Chunk& left, Chunk& right, Chunk& forward, Chunk& back)
                     create_face(vertex1, vertex2, vertex3, vertex4);
                 }
                 // 右
-                if((j+1 < chunkSize && chunkBlocks[i][j+1][k] == AIR) || (j == chunkSize-1 && right.getBlockType(0, chunkSize-1-i, k) == AIR))
+                if((j+1 < chunkSize && chunkBlocks[i][j+1][k] == AIR) || (j == chunkSize-1 && right.get_block_type(0, chunkSize-1-i, k) == AIR))
                 {
                     Vertex vertex1; // 左上
                     vertex1.Position = glm::vec3(j+1, k+1, chunkSize-1-i);

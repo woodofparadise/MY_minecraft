@@ -23,14 +23,19 @@ class Terrain
 
         Terrain(int seed, glm::vec3 position, char const* path)
         {
+            init_terrain(seed, position, path);
+        }
+
+        void init_terrain(int seed, glm::vec3 position, char const* path)
+        {
             perlinNoice.set_seed(seed);
             update_terrain(position);
-            blockTexture.loadTexture(path);
+            blockTexture.load_texture(path);
         }
 
         void update_terrain(glm::vec3 position);
         
-        void bindBlockTexture(Shader& blockShader)
+        void bind_block_texture(Shader& blockShader)
         {
             blockShader.use();
             glActiveTexture(GL_TEXTURE0);
@@ -39,15 +44,15 @@ class Terrain
 
         void draw_terrain(Shader& blockShader);
 
-        int getHeight(glm::vec3 position);
+        int get_height(glm::vec3 position);
 
-        int getBlockType(const glm::vec3& position);
+        int get_block_type(const glm::vec3& position);
 
         bool destroy_block(glm::ivec3& selectedBlock);
         
 };
 
-int Terrain::getBlockType(const glm::vec3& position)
+int Terrain::get_block_type(const glm::vec3& position)
 {
     chunk_index_x = floor((float)(position.x+chunkSize/2) / (float)chunkSize);
     chunk_index_z = floor((float)(position.z+chunkSize/2) / (float)chunkSize);
@@ -58,10 +63,10 @@ int Terrain::getBlockType(const glm::vec3& position)
         Chunk chunk(perlinNoice, chunk_index_x, chunk_index_z);
         terrainMap[index] = chunk;
     }
-    return terrainMap[index].getBlockType(position.x-chunk_index_x*chunkSize+chunkSize/2, position.z-chunk_index_z*chunkSize+chunkSize/2, position.y);
+    return terrainMap[index].get_block_type(position.x-chunk_index_x*chunkSize+chunkSize/2, position.z-chunk_index_z*chunkSize+chunkSize/2, position.y);
 }
 
-int Terrain::getHeight(glm::vec3 position)
+int Terrain::get_height(glm::vec3 position)
 {
     chunk_index_x = floor((float)(position.x+chunkSize/2) / (float)chunkSize);
     chunk_index_z = floor((float)(position.z+chunkSize/2) / (float)chunkSize);
@@ -71,12 +76,12 @@ int Terrain::getHeight(glm::vec3 position)
         Chunk chunk(perlinNoice, chunk_index_x, chunk_index_z);
         terrainMap[index] = chunk;
     }
-    return terrainMap[index].getHeight(position.x-chunk_index_x*chunkSize+chunkSize/2, position.z-chunk_index_z*chunkSize+chunkSize/2);
+    return terrainMap[index].get_height(position.x-chunk_index_x*chunkSize+chunkSize/2, position.z-chunk_index_z*chunkSize+chunkSize/2);
 }
 
 void Terrain::draw_terrain(Shader& blockShader)
 {
-    blockShader.setInt("textureUsed", 0);
+    blockShader.set_int("textureUsed", 0);
     // glActiveTexture(GL_TEXTURE0);
     // glBindTexture(GL_TEXTURE_2D, blockTexture.TextureID);
     for(int i = -1; i <= 1; i++)
@@ -88,7 +93,7 @@ void Terrain::draw_terrain(Shader& blockShader)
             glm::mat4 model = glm::mat4(1.0f);
             // z轴位移+1是为了修正chunk.h中构造函数计算与空气接触的面加入渲染队列的时候不小心整体后移了1，懒得调整回来了
             model = glm::translate(model, glm::vec3(index.first*chunkSize-chunkSize/2, 0.0f, index.second*chunkSize-chunkSize/2+1));
-            blockShader.setMat4("model", model);
+            blockShader.set_mat4("model", model);
             // model = glm::rotate(model, glm::radians(-60.0f), glm::vec3(1.0f, 0.0f, 0.0f));
             // model = glm::scale(model, glm::vec3(0.1f));
             glBindVertexArray(terrainMap[index].VAO);

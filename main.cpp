@@ -55,16 +55,16 @@ void mouse_callback(GLFWwindow* window, double xposIn, double yposIn)
     lastX = xpos;
     lastY = ypos;
 
-    player.camera.processMouseMovement2(xoffset, yoffset);
+    player.camera.process_mouse_movement_2(xoffset, yoffset);
 }
 
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 {
-    player.camera.processMouseScroll(static_cast<float>(yoffset));
+    player.camera.process_mouse_scroll(static_cast<float>(yoffset));
 }
 
 bool spaceKeyPressed = false;
-void processInput(GLFWwindow *window)
+void process_input(GLFWwindow *window)
 {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
@@ -78,7 +78,7 @@ void processInput(GLFWwindow *window)
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
         player.move(RIGHT, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS)
-        player.switchMode();
+        player.switch_mode();
     if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS && !spaceKeyPressed) 
     {
         spaceKeyPressed = true;
@@ -130,14 +130,14 @@ int main()
     Shader selectionShader("./shaders/selectionShader.vs", "./shaders/selectionShader.fs");
 
     Shader blockShader("./shaders/blockShader.vs", "./shaders/blockShader.fs");
-    player.initGLResources("./steve.png");
+    player.upload_data("./steve.png");
     Terrain terrain(666, player.position, "./DefaultPack2.png");
-    terrain.bindBlockTexture(blockShader);
-    player.bindPlayerTexture(blockShader);
-    player.setPosition(glm::vec3(0.5f, terrain.getHeight(player.position), 0.5f));
+    terrain.bind_block_texture(blockShader);
+    player.bind_player_texture(blockShader);
+    player.set_position(glm::vec3(0.5f, terrain.get_height(player.position), 0.5f));
     blockShader.use();
-    blockShader.setInt("blockTexture", 0);
-    blockShader.setInt("playerTexture", 1);
+    blockShader.set_int("blockTexture", 0);
+    blockShader.set_int("playerTexture", 1);
     // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
     glEnable(GL_DEPTH_TEST);
@@ -151,18 +151,18 @@ int main()
         lastFrame = currentFrame;
         glfwSetCursorPos(window, SCR_WIDTH/2, SCR_HEIGHT/2);
         // glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-        processInput(window); // 在每一帧检测窗口是否返回
+        process_input(window); // 在每一帧检测窗口是否返回
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f); // 设置清空屏幕所用的颜色
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // 清除颜色缓冲和深度缓冲
 
-        glm::mat4 view = player.camera.getViewMatrix();                // 观察矩阵
-        glm::mat4 projection = player.camera.getProjectionMatrix();    // 投影矩阵    
+        glm::mat4 view = player.camera.get_view_matrix();                // 观察矩阵
+        glm::mat4 projection = player.camera.get_projection_matrix();    // 投影矩阵    
         // 检测选中的方块
-        if (raycast(player.position+glm::vec3(0.0f, 1.6f, 0.0f), player.camera.cameraFront, 4.0f, terrain, selectedBlock)) 
+        if (raycast_step(player.position+glm::vec3(0.0f, 1.6f, 0.0f), player.camera.cameraFront, 4.0f, terrain, selectedBlock)) 
         {
             // 渲染选中效果
             // cout << selectedBlock.x << " " << selectedBlock.y << " " << selectedBlock.z << endl;
-            renderSelectionBox(selectedBlock, selectionShader, projection, view);
+            render_selection_box(selectedBlock, selectionShader, projection, view);
         }
         if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) 
         {
@@ -171,12 +171,12 @@ int main()
         }    
         
         blockShader.use();
-        player.updatePosition(terrain, deltaTime);
+        player.update_position(terrain, deltaTime);
         terrain.update_terrain(player.camera.cameraPos);               // 更新地形
-        blockShader.setMat4("view", view);
-        blockShader.setMat4("projection", projection);
+        blockShader.set_mat4("view", view);
+        blockShader.set_mat4("projection", projection);
         terrain.draw_terrain(blockShader);
-        player.drawPlayer(blockShader);
+        player.draw_player(blockShader);
         
         // 检查并调用事件，交换缓冲
 	    glfwSwapBuffers(window); // 交换颜色缓冲

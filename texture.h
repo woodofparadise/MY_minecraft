@@ -18,13 +18,13 @@ class Texture
 
         Texture(char const * path)
         {
-            loadTexture(path);
+            load_texture(path);
         }
 
-        void loadTexture(char const * path);
+        void load_texture(char const * path);
 };
 
-void Texture::loadTexture(char const * path)
+void Texture::load_texture(char const * path)
 {
     unsigned int textureID;
     glGenTextures(1, &textureID);
