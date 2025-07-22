@@ -22,6 +22,11 @@ class Texture
         }
 
         void load_texture(char const * path);
+
+        void clear()
+        {
+            glDeleteTextures(1, &TextureID);
+        }
 };
 
 void Texture::load_texture(char const * path)

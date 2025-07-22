@@ -24,6 +24,8 @@ public:
     glm::vec3 cameraFront; // 指向摄影机z轴正方向，所以和指向目标的向量相反
     glm::vec3 cameraUp; // 上向量
     glm::vec3 cameraRight; // 右向量
+    float Yaw; // 偏航角，即以y轴为中心的旋转角
+    float Pitch; // 俯仰角，即以x轴为中心的旋转角
 
     Camera(glm::vec3 position, glm::vec3 Up = glm::vec3(0, 1, 0), float width = 800, float height = 600, float fov = 45.0, float near = 0.1f, float far = 1000.0f);
 
@@ -81,8 +83,6 @@ private:
 
     float screenWidth; // 屏幕宽度
     float screenHeight; // 屏幕高度
-    float Yaw; // 偏航角，即以y轴为中心的旋转角
-    float Pitch; // 俯仰角，即以x轴为中心的旋转角
     float visualField; // 投影矩阵视野
     float zNear; // 近平面
     float zFar; // 远平面
@@ -98,7 +98,7 @@ Camera::Camera(glm::vec3 position, glm::vec3 Up, float width, float height, floa
     visualField = fov;
     zNear = near;
     zFar = far;
-    Yaw = -90.0f;
+    Yaw = 90.0f;
     Pitch = 0.0f;
 
     // 更新投影矩阵和视图矩阵
@@ -154,8 +154,8 @@ void Camera::process_mouse_movement_2(float xoffset, float yoffset)
 
     Pitch = std::max(-89.0f, Pitch);
     Pitch = std::min(89.0f, Pitch);
-    Yaw = std::max(0.0f, Yaw);
-    Yaw = std::min(180.0f, Yaw);
+    // Yaw = std::max(0.0f, Yaw);
+    // Yaw = std::min(180.0f, Yaw);
 
     // updateView();
 }

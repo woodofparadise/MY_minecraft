@@ -19,7 +19,14 @@ public:
     unsigned int ID;
     // constructor generates the shader on the fly
     // ------------------------------------------------------------------------
+    Shader(){}
+
     Shader(const char* vertexPath, const char* fragmentPath)
+    {
+        init_shader(vertexPath, fragmentPath);
+    }
+
+    void init_shader(const char* vertexPath, const char* fragmentPath)
     {
         // 1. retrieve the vertex/fragment source code from filePath
         std::string vertexCode;
@@ -73,6 +80,7 @@ public:
         glDeleteShader(vertex);
         glDeleteShader(fragment);
     }
+
     // activate the shader
     // ------------------------------------------------------------------------
     void use() 

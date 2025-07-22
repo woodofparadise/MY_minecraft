@@ -5,6 +5,7 @@
 #include "Shader.h"
 #include "texture.h"
 #include <map>
+#include <memory>
 #include <utility>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -13,7 +14,7 @@
 class Terrain
 {
     private:
-        map<pair<int, int>, Chunk> terrainMap;
+        map<pair<int, int>, unique_ptr<Chunk>> terrainMap;
         PerlinNoice perlinNoice;
         int chunk_index_x, chunk_index_z;
         Texture blockTexture;
@@ -44,12 +45,17 @@ class Terrain
 
         void draw_terrain(Shader& blockShader);
 
-        int get_height(glm::vec3 position);
+        int get_height(const glm::vec3& position);
 
         int get_block_type(const glm::vec3& position);
 
         bool destroy_block(glm::ivec3& selectedBlock);
-        
+
+        void clear()
+        {
+            terrainMap.clear();
+            blockTexture.clear();
+        }
 };
 
 int Terrain::get_block_type(const glm::vec3& position)
@@ -60,23 +66,21 @@ int Terrain::get_block_type(const glm::vec3& position)
     pair<int, int> index(chunk_index_x, chunk_index_z);
     if(terrainMap.find(index) == terrainMap.end())
     {
-        Chunk chunk(perlinNoice, chunk_index_x, chunk_index_z);
-        terrainMap[index] = chunk;
+        terrainMap[index] = make_unique<Chunk>(perlinNoice, chunk_index_x, chunk_index_z);
     }
-    return terrainMap[index].get_block_type(position.x-chunk_index_x*chunkSize+chunkSize/2, position.z-chunk_index_z*chunkSize+chunkSize/2, position.y);
+    return terrainMap[index]->get_block_type(position.x-chunk_index_x*chunkSize+chunkSize/2, position.z-chunk_index_z*chunkSize+chunkSize/2, position.y);
 }
 
-int Terrain::get_height(glm::vec3 position)
+int Terrain::get_height(const glm::vec3& position)
 {
     chunk_index_x = floor((float)(position.x+chunkSize/2) / (float)chunkSize);
     chunk_index_z = floor((float)(position.z+chunkSize/2) / (float)chunkSize);
     pair<int, int> index(chunk_index_x, chunk_index_z);
     if(terrainMap.find(index) == terrainMap.end())
     {
-        Chunk chunk(perlinNoice, chunk_index_x, chunk_index_z);
-        terrainMap[index] = chunk;
+        terrainMap[index] = make_unique<Chunk>(perlinNoice, chunk_index_x, chunk_index_z);
     }
-    return terrainMap[index].get_height(position.x-chunk_index_x*chunkSize+chunkSize/2, position.z-chunk_index_z*chunkSize+chunkSize/2);
+    return terrainMap[index]->get_height(position.x-chunk_index_x*chunkSize+chunkSize/2, position.z-chunk_index_z*chunkSize+chunkSize/2);
 }
 
 void Terrain::draw_terrain(Shader& blockShader)
@@ -96,9 +100,9 @@ void Terrain::draw_terrain(Shader& blockShader)
             blockShader.set_mat4("model", model);
             // model = glm::rotate(model, glm::radians(-60.0f), glm::vec3(1.0f, 0.0f, 0.0f));
             // model = glm::scale(model, glm::vec3(0.1f));
-            glBindVertexArray(terrainMap[index].VAO);
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, terrainMap[index].EBO);
-            glDrawElements(GL_TRIANGLES, static_cast<unsigned int>(terrainMap[index].indices.size()), GL_UNSIGNED_INT, 0);
+            glBindVertexArray(terrainMap[index]->VAO);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, terrainMap[index]->EBO);
+            glDrawElements(GL_TRIANGLES, static_cast<unsigned int>(terrainMap[index]->indices.size()), GL_UNSIGNED_INT, 0);
         }
     }
 }
@@ -115,18 +119,16 @@ void Terrain::update_terrain(glm::vec3 position)
             pair<int, int> index(chunk_index_x+i, chunk_index_z+j);
             if(terrainMap.find(index) == terrainMap.end())
             {
-                Chunk chunk(perlinNoice, chunk_index_x+i, chunk_index_z+j);
-                terrainMap[index] = chunk;
+                terrainMap[index] = make_unique<Chunk>(perlinNoice, chunk_index_x, chunk_index_z);
             }
-            if(terrainMap[index].isModified)
+            if(terrainMap[index]->isModified)
             {
                 for(int x = -1; x <= 1; x += 2)
                 {
                     pair<int, int> adjIndex(index.first+x, index.second);
                     if(terrainMap.find(adjIndex) == terrainMap.end())
                     {
-                        Chunk chunk(perlinNoice, adjIndex.first, adjIndex.second);
-                        terrainMap[adjIndex] = chunk;
+                        terrainMap[adjIndex] = make_unique<Chunk>(perlinNoice, adjIndex.first, adjIndex.second);
                     }
                 }
                 for(int y = -1; y <= 1; y += 2)
@@ -134,15 +136,14 @@ void Terrain::update_terrain(glm::vec3 position)
                     pair<int, int> adjIndex(index.first, index.second+y);
                     if(terrainMap.find(adjIndex) == terrainMap.end())
                     {
-                        Chunk chunk(perlinNoice, adjIndex.first, adjIndex.second);
-                        terrainMap[adjIndex] = chunk;
+                        terrainMap[adjIndex] = make_unique<Chunk>(perlinNoice, adjIndex.first, adjIndex.second);
                     }
                 }
                 pair<int, int> left(index.first-1, index.second); // 左
                 pair<int, int> right(index.first+1, index.second); // 右
                 pair<int, int> forward(index.first, index.second-1); // 前
                 pair<int, int> back(index.first, index.second+1); // 后
-                terrainMap[index].update_data(terrainMap[left], terrainMap[right], terrainMap[forward], terrainMap[back]);
+                terrainMap[index]->update_data(terrainMap[left].get(), terrainMap[right].get(), terrainMap[forward].get(), terrainMap[back].get());
             }
         }
     }
@@ -155,10 +156,9 @@ bool Terrain::destroy_block(glm::ivec3& selectedBlock)
     pair<int, int> index(chunk_index_x, chunk_index_z);
     if(terrainMap.find(index) == terrainMap.end())
     {
-        Chunk chunk(perlinNoice, chunk_index_x, chunk_index_z);
-        terrainMap[index] = chunk;
+        terrainMap[index] = make_unique<Chunk>(perlinNoice, chunk_index_x, chunk_index_z);
     }
-    return terrainMap[index].set_block(selectedBlock.x-chunk_index_x*chunkSize+chunkSize/2, selectedBlock.z-chunk_index_z*chunkSize+chunkSize/2, selectedBlock.y, AIR);
+    return terrainMap[index]->set_block(selectedBlock.x-chunk_index_x*chunkSize+chunkSize/2, selectedBlock.z-chunk_index_z*chunkSize+chunkSize/2, selectedBlock.y, AIR);
 }
 
 #endif

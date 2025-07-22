@@ -107,7 +107,7 @@ class Player
         std::vector<Vertex> vertices;
         Texture playerTexture;
         bool cameraMode = true; // 控制第三人称和第一人称切换
-        glm::vec3 velocity;
+        glm::vec3 velocity = glm::vec3(0.0f, 0.0f, 0.0f);
         glm::vec3 playerSize = glm::vec3(0.6f, 1.8f, 0.6f);
         bool isOnGround = false;            // 是否在地面上
         bool isJumping = false;     // 是否正在跳跃
@@ -143,6 +143,14 @@ class Player
         }
 
         void jump();
+
+        void clear()
+        {
+            playerTexture.clear();
+            if (VAO != 0) glDeleteVertexArrays(1, &VAO);
+            if (VBO != 0) glDeleteBuffers(1, &VBO);
+            if (EBO != 0) glDeleteBuffers(1, &EBO);
+        }
 };
 
 Player::Player()
@@ -352,8 +360,8 @@ void Player::draw_player(Shader& playerShader)
     playerShader.set_int("textureUsed", 1);
     glm::mat4 model = glm::mat4(1.0f);
     model = glm::translate(model, position);
+    model = glm::rotate(model, glm::radians(-camera.Yaw+90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
     playerShader.set_mat4("model", model);
-    // model = glm::rotate(model, glm::radians(-60.0f), glm::vec3(1.0f, 0.0f, 0.0f));
     // model = glm::scale(model, glm::vec3(0.1f));
     glBindVertexArray(VAO);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
@@ -387,6 +395,7 @@ void Player::update_position(Terrain& terrain, float& deltaTime)
 {
     // 根据速度更新位置
     resolve_collisions(position, playerSize, velocity, playerBox, terrain);
+    
     // 更新碰撞箱
     playerBox.update_AABB(position+glm::vec3(0.0f, 0.9f, 0.0f), playerSize);
     isOnGround = (terrain.get_block_type(position - glm::vec3(0.0f, 0.1f, 0.0f)) != AIR);
@@ -407,11 +416,11 @@ void Player::update_position(Terrain& terrain, float& deltaTime)
     // 更新相机位置
     if(cameraMode)
     {
-        camera.set_position(position+glm::vec3(0.0f, ARM_LEG_SIZE_Y+BODY_SIZE_Y+HEAD_SIZE/2, HEAD_SIZE));
+        camera.set_position(position+glm::vec3(camera.cameraFront.x, ARM_LEG_SIZE_Y+BODY_SIZE_Y+HEAD_SIZE/2, HEAD_SIZE*(0.65+camera.cameraFront.z)));
     }
     else
     {
-        camera.set_position(position+glm::vec3(0.0f, (ARM_LEG_SIZE_Y+BODY_SIZE_Y+HEAD_SIZE/2) * 1.5, -8 * HEAD_SIZE));
+        camera.set_position(position+glm::vec3(-4 * camera.cameraFront.x, (ARM_LEG_SIZE_Y+BODY_SIZE_Y+HEAD_SIZE/2) * 1.5, -4 * HEAD_SIZE*camera.cameraFront.z));
     }
 }
 

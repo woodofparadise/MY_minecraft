@@ -123,7 +123,7 @@ float calculate_overlap(const AABB& playerBox, const glm::ivec3& blockPos, int a
 
 void resolve_collisions(glm::vec3& position, const glm::vec3& playerSize, glm::vec3& velocity, AABB& playerBox, Terrain& terrain) 
 { 
-    
+    // cout <<position.x << " " << position.y << " " << position.z << endl;
     // 分别处理每个轴
     for (int axis = 0; axis < 3; ++axis) 
     { 

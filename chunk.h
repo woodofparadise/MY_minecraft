@@ -19,7 +19,7 @@ class Chunk
         std::vector<std::vector<int> > heightMap;
         std::vector<Vertex> vertices;
 
-        glm::vec2 get_tex_coord(int blockType, int face);
+        glm::vec2 get_tex_coord(int blockType, int face) const;
 
         void create_face(Vertex& vertex1, Vertex& vertex2, Vertex& vertex3, Vertex& vertex4);
 
@@ -34,24 +34,30 @@ class Chunk
 
         Chunk(PerlinNoice& perlinNoice, int x, int y);
 
-        int get_height(int i, int j)
+        int get_height(int i, int j) const
         {
             return heightMap[chunkSize-1-j][i];
         }
 
-        int get_block_type(int i, int j, int k)
+        int get_block_type(int i, int j, int k) const
         {
             return chunkBlocks[chunkSize-1-j][i][k];
         }
 
-        void update_data(Chunk& left, Chunk& right, Chunk& forward, Chunk& back);
+        void update_data(const Chunk* left, const Chunk* right, const Chunk* forward, const Chunk* back);
 
         bool set_block(int i, int j, int k, int blockType);
 
-
+        ~Chunk()
+        {
+            // // 释放前检查ID是否有效（0是安全的，glDelete会忽略）
+            if (VAO != 0) glDeleteVertexArrays(1, &VAO);
+            if (VBO != 0) glDeleteBuffers(1, &VBO);
+            if (EBO != 0) glDeleteBuffers(1, &EBO);
+        }
 };
 
-glm::vec2 Chunk::get_tex_coord(int blockType, int face)
+glm::vec2 Chunk::get_tex_coord(int blockType, int face) const
 {
     switch(blockType)
     {
@@ -129,7 +135,7 @@ Chunk::Chunk(PerlinNoice& perlinNoice, int x, int y)
     isModified = true;
 }
 
-void Chunk::update_data(Chunk& left, Chunk& right, Chunk& forward, Chunk& back)
+void Chunk::update_data(const Chunk* left, const Chunk* right, const Chunk* forward, const Chunk* back)
 {
     
     vector<Vertex>().swap(vertices);
@@ -147,7 +153,7 @@ void Chunk::update_data(Chunk& left, Chunk& right, Chunk& forward, Chunk& back)
                     continue;
                 }
                 // 后
-                if((i-1 >= 0 && chunkBlocks[i-1][j][k] == AIR) || (i == 0  && back.get_block_type(j, 0, k) == AIR))
+                if((i-1 >= 0 && chunkBlocks[i-1][j][k] == AIR) || (i == 0  && back->get_block_type(j, 0, k) == AIR))
                 {
                     Vertex vertex1; // 左上
                     vertex1.Position = glm::vec3(j, k+1, chunkSize-1-i);
@@ -168,7 +174,7 @@ void Chunk::update_data(Chunk& left, Chunk& right, Chunk& forward, Chunk& back)
                     create_face(vertex1, vertex2, vertex3, vertex4);
                 }
                 // 前
-                if((i+1 < chunkSize && chunkBlocks[i+1][j][k] == AIR) || (i == chunkSize-1  && forward.get_block_type(j, chunkSize-1, k) == AIR))
+                if((i+1 < chunkSize && chunkBlocks[i+1][j][k] == AIR) || (i == chunkSize-1  && forward->get_block_type(j, chunkSize-1, k) == AIR))
                 {
                     Vertex vertex1; // 左上
                     vertex1.Position = glm::vec3(j, k+1, chunkSize-1-(i+1));
@@ -189,7 +195,7 @@ void Chunk::update_data(Chunk& left, Chunk& right, Chunk& forward, Chunk& back)
                     create_face(vertex1, vertex2, vertex3, vertex4);
                 }
                 // 左
-                if((j-1 >= 0 && chunkBlocks[i][j-1][k] == AIR) || (j == 0  && left.get_block_type(chunkSize-1, chunkSize-1-i, k) == AIR))
+                if((j-1 >= 0 && chunkBlocks[i][j-1][k] == AIR) || (j == 0  && left->get_block_type(chunkSize-1, chunkSize-1-i, k) == AIR))
                 {
                     Vertex vertex1; // 左上
                     vertex1.Position = glm::vec3(j, k+1, chunkSize-1-i);
@@ -210,7 +216,7 @@ void Chunk::update_data(Chunk& left, Chunk& right, Chunk& forward, Chunk& back)
                     create_face(vertex1, vertex2, vertex3, vertex4);
                 }
                 // 右
-                if((j+1 < chunkSize && chunkBlocks[i][j+1][k] == AIR) || (j == chunkSize-1 && right.get_block_type(0, chunkSize-1-i, k) == AIR))
+                if((j+1 < chunkSize && chunkBlocks[i][j+1][k] == AIR) || (j == chunkSize-1 && right->get_block_type(0, chunkSize-1-i, k) == AIR))
                 {
                     Vertex vertex1; // 左上
                     vertex1.Position = glm::vec3(j+1, k+1, chunkSize-1-i);
