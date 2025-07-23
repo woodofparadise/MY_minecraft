@@ -66,7 +66,7 @@ int Terrain::get_block_type(const glm::vec3& position)
     pair<int, int> index(chunk_index_x, chunk_index_z);
     if(terrainMap.find(index) == terrainMap.end())
     {
-        terrainMap[index] = make_unique<Chunk>(perlinNoice, chunk_index_x, chunk_index_z);
+        terrainMap[index] = make_unique<Chunk>(perlinNoice, index.first, index.second);
     }
     return terrainMap[index]->get_block_type(position.x-chunk_index_x*chunkSize+chunkSize/2, position.z-chunk_index_z*chunkSize+chunkSize/2, position.y);
 }
@@ -78,7 +78,7 @@ int Terrain::get_height(const glm::vec3& position)
     pair<int, int> index(chunk_index_x, chunk_index_z);
     if(terrainMap.find(index) == terrainMap.end())
     {
-        terrainMap[index] = make_unique<Chunk>(perlinNoice, chunk_index_x, chunk_index_z);
+        terrainMap[index] = make_unique<Chunk>(perlinNoice, index.first, index.second);
     }
     return terrainMap[index]->get_height(position.x-chunk_index_x*chunkSize+chunkSize/2, position.z-chunk_index_z*chunkSize+chunkSize/2);
 }
@@ -119,7 +119,7 @@ void Terrain::update_terrain(glm::vec3 position)
             pair<int, int> index(chunk_index_x+i, chunk_index_z+j);
             if(terrainMap.find(index) == terrainMap.end())
             {
-                terrainMap[index] = make_unique<Chunk>(perlinNoice, chunk_index_x, chunk_index_z);
+                terrainMap[index] = make_unique<Chunk>(perlinNoice, index.first, index.second);
             }
             if(terrainMap[index]->isModified)
             {
@@ -156,7 +156,7 @@ bool Terrain::destroy_block(glm::ivec3& selectedBlock)
     pair<int, int> index(chunk_index_x, chunk_index_z);
     if(terrainMap.find(index) == terrainMap.end())
     {
-        terrainMap[index] = make_unique<Chunk>(perlinNoice, chunk_index_x, chunk_index_z);
+        terrainMap[index] = make_unique<Chunk>(perlinNoice, index.first, index.second);
     }
     return terrainMap[index]->set_block(selectedBlock.x-chunk_index_x*chunkSize+chunkSize/2, selectedBlock.z-chunk_index_z*chunkSize+chunkSize/2, selectedBlock.y, AIR);
 }

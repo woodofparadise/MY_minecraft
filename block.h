@@ -8,7 +8,11 @@
 enum BLOCK_TYPE
 {
 	AIR = 0,
-	GRASS
+	GRASS,
+	STONE,
+	SAND, 
+	WATER,
+	SOIL
 };
 
 struct Block

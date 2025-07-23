@@ -137,9 +137,9 @@ class Player
             camera.set_position(position+glm::vec3(0.0f, ARM_LEG_SIZE_Y+BODY_SIZE_Y+HEAD_SIZE/2, HEAD_SIZE));
         }
 
-        void switch_mode()
+        void switch_camera_mode()
         {
-            cameraMode = false;
+            cameraMode = !cameraMode;
         }
 
         void jump();

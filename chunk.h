@@ -9,8 +9,8 @@
 #include "basic_struct.h"
 #include <vector>
 
-const int chunkSize = 32;
-const int chunkHeight = 64;
+const int chunkSize = 64;
+const int chunkHeight = 128;
 
 class Chunk
 {
@@ -59,10 +59,32 @@ class Chunk
 
 glm::vec2 Chunk::get_tex_coord(int blockType, int face) const
 {
+    // face = 1/2/3(上面/侧面/下面)
     switch(blockType)
     {
-        case(GRASS):{
-                return glm::vec2((float)(face-1.0f)/16.0f, 1.0f);
+        case(GRASS):
+        {
+            if(face == 1)
+            {
+                return glm::vec2(0.0f, 1.0f);
+            }
+            return glm::vec2((float)(face+1.0f)/16.0f, 1.0f);
+        }
+        case(STONE):
+        {
+            return glm::vec2((float)1.0f/16.0f, 1.0f);
+        }
+        case(SAND):
+        {
+            return glm::vec2((float)2.0f/16.0f, 1.0f-(float)1.0f/16.0f);
+        }
+        case(WATER):
+        {
+            return glm::vec2((float)13.0f/16.0f, 1.0f-(float)12.0f/16.0f);
+        }
+        case(SOIL):
+        {
+            return glm::vec2((float)2.0f/16.0f, 1.0f);
         }
     }
     return glm::vec2(0.0f);
@@ -122,11 +144,34 @@ Chunk::Chunk(PerlinNoice& perlinNoice, int x, int y)
         {
             chunkBlocks[chunkSize-1-i][j].resize(chunkHeight, AIR);
             // cout << j << " " << perlinNoice.get_2D_perlin_noice((double)x+step*i, (double)y+step*j) << endl;
-            int height = floor((double)chunkHeight/2 * max((perlinNoice.get_2D_perlin_noice((double)x+step*i+step/2, (double)y+step*j+step/2)+0.8), (double)0));
-            heightMap[chunkSize-1-i][j] = height;
-            for(int k = 0; k < height; k++)
+            int height = floor((double)chunkHeight/2 * max((perlinNoice.get_2D_perlin_noice((double)x+step*i+step/2, (double)y+step*j+step/2)+1.0f), (double)0));
+            heightMap[chunkSize-1-i][j] = max(height, (int)(chunkHeight/2.0f+1));
+            // cout << perlinNoice.get_2D_perlin_noice((double)x+step*i+step/2, (double)y+step*j+step/2) << endl;
+            // 如果在水下
+            if(height < chunkHeight/2.0f)
             {
-                chunkBlocks[chunkSize-1-i][j][k] = GRASS;
+                for(int k = 0; k < height-1; k++)
+                {
+                    chunkBlocks[chunkSize-1-i][j][k] = STONE;
+                }
+                chunkBlocks[chunkSize-1-i][j][height-1] = SAND;
+                for(int k = height; k < chunkHeight/2.0f; k++)
+                {
+                    chunkBlocks[chunkSize-1-i][j][k] = WATER;
+                }
+            }
+            else
+            {
+                int soilDepth = rand()%3+2;
+                for(int k = 0; k < height-soilDepth; k++)
+                {
+                    chunkBlocks[chunkSize-1-i][j][k] = STONE;
+                }
+                for(int k = height-soilDepth; k < height-1; k++)
+                {
+                    chunkBlocks[chunkSize-1-i][j][k] = SOIL;
+                }
+                chunkBlocks[chunkSize-1-i][j][height-1] = GRASS;
             }
         }
     }

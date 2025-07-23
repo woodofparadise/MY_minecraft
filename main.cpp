@@ -12,8 +12,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-const float SCR_WIDTH = 800;
-const float SCR_HEIGHT = 600;
+const float SCR_WIDTH = 1200;
+const float SCR_HEIGHT = 800;
 
 class Game
 {
@@ -70,7 +70,7 @@ class Game
             // 初始化人物和地形
             blockShader.use();
             player.upload_data("./steve.png");
-            terrain.init_terrain(this->seed, player.position, "./DefaultPack2.png");
+            terrain.init_terrain(this->seed, player.position, "./DefaultPack.png");
             terrain.bind_block_texture(blockShader);
             player.bind_player_texture(blockShader);
             player.set_position(glm::vec3(0.5f, terrain.get_height(player.position), 0.5f));
@@ -86,7 +86,6 @@ class Game
             glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
             // 注册鼠标滚轮回调函数
-            // glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
             glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
             glfwSetScrollCallback(window, scroll_callback);
 
@@ -209,8 +208,15 @@ class Game
                 game->player.move(LEFT, game->deltaTime);
             if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
                 game->player.move(RIGHT, game->deltaTime);
-            if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS)
-                game->player.switch_mode();
+            if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS && !game->RKeyPressed)
+            {
+                game->RKeyPressed = true;
+                game->player.switch_camera_mode();
+            }
+            else if (game->RKeyPressed && glfwGetKey(window, GLFW_KEY_R) == GLFW_RELEASE) 
+            {
+                game->RKeyPressed = false;
+            }   
             if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS && !game->spaceKeyPressed) 
             {
                 game->spaceKeyPressed = true;
