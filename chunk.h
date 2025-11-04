@@ -59,7 +59,7 @@ class Chunk
 
 glm::vec2 Chunk::get_tex_coord(int blockType, int face) const
 {
-    // face = 1/2/3(上面/侧面/下面)
+    // face = 1/2/3(上面/下面/侧面)
     switch(blockType)
     {
         case(GRASS):
@@ -68,7 +68,7 @@ glm::vec2 Chunk::get_tex_coord(int blockType, int face) const
             {
                 return glm::vec2(0.0f, 1.0f);
             }
-            return glm::vec2((float)(face+1.0f)/16.0f, 1.0f);
+            return glm::vec2((float)(face)/16.0f, 1.0f);
         }
         case(STONE):
         {
@@ -241,9 +241,9 @@ void Chunk::update_data(const Chunk* left, const Chunk* right, const Chunk* forw
     
     for(int blockType = 1; blockType <= 5; blockType++)
     {
-        sideTexCoords[blockType] = get_tex_coord(blockType, 2);
+        sideTexCoords[blockType] = get_tex_coord(blockType, 3);
         topTexCoords[blockType] = get_tex_coord(blockType, 1);
-        bottomTexCoords[blockType] = get_tex_coord(blockType, 3);
+        bottomTexCoords[blockType] = get_tex_coord(blockType, 2);
     }
     
     // 只渲染和空气方块接触的表面，其它表面隐藏

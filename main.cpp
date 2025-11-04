@@ -22,6 +22,7 @@ class Game
         Terrain terrain;            // 世界地图
 
         glm::ivec3 selectedBlock;   // 选中的方块
+        glm::ivec3 lastHitBlock;    // 可放置方块的位置(实际上就是步进算法直到selectedBlock前的最后一个空气方块)
 
         Shader selectionShader;
         Shader blockShader;
@@ -33,6 +34,8 @@ class Game
         bool firstMouse = true;         // 标记鼠标是否是第一次进入游戏界面范围
         bool spaceKeyPressed = false;   // 标记空格键(控制跳跃)的按下状态
         bool RKeyPressed = false;       // 标记R键(控制视角切换)的按下状态
+        bool blockSelected = false;     // 标记是否有效选中了一个方块
+        BLOCK_TYPE chosenBlockType = GRASS; // 标记当前手持的方块类型
         int seed;                       // 世界种子
         GLFWwindow* window;             // 游戏窗口
 
@@ -115,11 +118,12 @@ class Game
                 glm::mat4 view = player.camera.get_view_matrix();                // 观察矩阵
                 glm::mat4 projection = player.camera.get_projection_matrix();    // 投影矩阵    
                 // 检测选中的方块
-                if (raycast_step(player.position+glm::vec3(0.0f, 1.6f, 0.0f), player.camera.cameraFront, 4.0f, terrain, selectedBlock)) 
+                blockSelected = false;
+                if (raycast_step(player.position+glm::vec3(0.0f, 1.6f, 0.0f), player.camera.cameraFront, 4.0f, terrain, selectedBlock, lastHitBlock)) 
                 {
                     // 渲染选中效果
-                    // cout << selectedBlock.x << " " << selectedBlock.y << " " << selectedBlock.z << endl;
                     render_selection_box(selectedBlock, selectionShader, projection, view);
+                    blockSelected = true;
                 }
                 
                 blockShader.use();
@@ -240,11 +244,16 @@ class Game
                 cout << "handle mouse input error" << endl; 
                 return ;
             }
-            if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) 
+            if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS && game->blockSelected) 
             {
                 // 破坏方块
                 game->terrain.destroy_block(game->selectedBlock);
             }    
+            if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS && game->blockSelected && game->chosenBlockType != AIR && !is_overlap_with_player(game->player.position, game->lastHitBlock)) 
+            {
+                // 放置方块
+                game->terrain.create_block(game->lastHitBlock, game->chosenBlockType);
+            }  
         }
 };
 

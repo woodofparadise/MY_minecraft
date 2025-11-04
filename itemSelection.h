@@ -35,7 +35,7 @@ float int_bound(float s, float ds)
     return t;
 }
 
-bool raycast_step(glm::vec3 origin, glm::vec3 direction, float maxDistance, Terrain& terrain, glm::ivec3& hitBlock) 
+bool raycast_step(const glm::vec3& origin, const glm::vec3& direction, float maxDistance, Terrain& terrain, glm::ivec3& hitBlock, glm::ivec3& lastHitBlock) 
 {
     // origin: 射线起点，即玩家头部位置
     // direction: 射线方向
@@ -73,7 +73,7 @@ bool raycast_step(glm::vec3 origin, glm::vec3 direction, float maxDistance, Terr
             hitBlock = currentBlock;
             return true;
         }
-        
+        lastHitBlock = currentBlock;
         // 步进至下一个方块，选择最小的步进距离(对应最近的方块)
         if (tMax.x < tMax.y) 
         {
@@ -180,6 +180,28 @@ void render_selection_box(const glm::ivec3& blockPos, Shader& selectionShader, g
     
     // 恢复填充模式
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+}
+
+bool is_overlap_with_player(const glm::vec3& playerPos, const glm::ivec3& blockPos)
+{
+    glm::ivec3 currentBlock = glm::ivec3(glm::floor(playerPos));
+    // cout << blockPos.x << " " << blockPos.y << " " << blockPos.z << endl;
+    // cout << currentBlock.x << " " << currentBlock.y << " " << currentBlock.z << endl << endl;
+    if(blockPos == currentBlock)
+    {
+        return true;
+    }
+    currentBlock.y = glm::floor(playerPos.y+0.8f);
+    if(blockPos == currentBlock)
+    {
+        return true;
+    }
+    currentBlock.y = glm::floor(playerPos.y+1.6f);
+    if(blockPos == currentBlock)
+    {
+        return true;
+    }
+    return false;
 }
 
 #endif
