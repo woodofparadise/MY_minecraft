@@ -8,6 +8,7 @@
 #include "terrain.h"
 #include "texture.h"
 #include "player.h"
+#include "HUDpainter.h"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -26,6 +27,9 @@ class Game
 
         Shader selectionShader;
         Shader blockShader;
+        Shader HUDShader;
+
+        std::vector<HUDitem> HUDitems;  // 游戏画面中的HUD元素，HUDitems[0]对应屏幕中心的光标
 
         float deltaTime = 0.0f;         // 当前帧与上一帧的时间差
         float lastFrame = 0.0f;         // 上一帧的时间
@@ -69,6 +73,7 @@ class Game
             // 初始化着色器
             selectionShader.init_shader("./shaders/selectionShader.vs", "./shaders/selectionShader.fs");
             blockShader.init_shader("./shaders/blockShader.vs", "./shaders/blockShader.fs");
+            HUDShader.init_shader("./shaders/HUDShader.vs", "./shaders/HUDShader.fs");
 
             // 初始化人物和地形
             blockShader.use();
@@ -77,8 +82,14 @@ class Game
             terrain.bind_block_texture(blockShader);
             player.bind_player_texture(blockShader);
             player.set_position(glm::vec3(0.5f, terrain.get_height(player.position), 0.5f));
-            blockShader.set_int("blockTexture", 0);
-            blockShader.set_int("playerTexture", 1);
+            blockShader.set_int("blockTexture", 1);
+            blockShader.set_int("playerTexture", 2);
+
+            HUDShader.use();
+            HUDitems.push_back(HUDitem());
+            HUDitems[0].set_HUDitem(25.0f, 25.0f, glm::vec2(SCR_WIDTH/2.0f, SCR_HEIGHT/2.0f), "./cursor.png");
+            HUDitems[0].bind_item_texture(HUDShader, 3);
+            HUDShader.set_int("cursorTexture", 3);
             cout << "initialize success" << endl;
         }
 
@@ -117,14 +128,6 @@ class Game
 
                 glm::mat4 view = player.camera.get_view_matrix();                // 观察矩阵
                 glm::mat4 projection = player.camera.get_projection_matrix();    // 投影矩阵    
-                // 检测选中的方块
-                blockSelected = false;
-                if (raycast_step(player.position+glm::vec3(0.0f, 1.6f, 0.0f), player.camera.cameraFront, 4.0f, terrain, selectedBlock, lastHitBlock)) 
-                {
-                    // 渲染选中效果
-                    render_selection_box(selectedBlock, selectionShader, projection, view);
-                    blockSelected = true;
-                }
                 
                 blockShader.use();
                 player.update_position(terrain, deltaTime);
@@ -132,7 +135,25 @@ class Game
                 blockShader.set_mat4("view", view);
                 blockShader.set_mat4("projection", projection);
                 terrain.draw_terrain(blockShader);
-                player.draw_player(blockShader);
+                if(!player.cameraMode)
+                {
+                    player.draw_player(blockShader);
+                }
+                
+                // 检测选中的方块
+                blockSelected = false;
+                if (raycast_step(player.camera.cameraPos, player.camera.cameraFront, 4.0f, terrain, selectedBlock, lastHitBlock)) 
+                {
+                    // 渲染选中效果
+                    render_selection_box(selectedBlock, selectionShader, projection, view);
+                    blockSelected = true;
+                }
+                
+                // 渲染HUD元素
+                for(int i = 0; i < HUDitems.size(); i++)
+                {
+                    HUDitems[i].draw_item(HUDShader, SCR_WIDTH, SCR_HEIGHT);
+                }
                 
                 // 检查并调用事件，交换缓冲
                 glfwSwapBuffers(window); // 交换颜色缓冲
@@ -147,6 +168,10 @@ class Game
         {
             player.clear();
             terrain.clear();
+            for(int i = 0; i < HUDitems.size(); i++)
+            {
+                HUDitems[i].clear();
+            }
             glfwDestroyWindow(window);
             cout << "Quiting game..." << endl;
         }

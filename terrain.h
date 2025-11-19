@@ -39,8 +39,9 @@ class Terrain
         void bind_block_texture(Shader& blockShader)
         {
             blockShader.use();
-            glActiveTexture(GL_TEXTURE0);
+            glActiveTexture(GL_TEXTURE1);
             glBindTexture(GL_TEXTURE_2D, blockTexture.TextureID);
+            glActiveTexture(GL_TEXTURE0);
         }
 
         void draw_terrain(Shader& blockShader);

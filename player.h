@@ -106,7 +106,6 @@ class Player
         std::vector<unsigned int> indices;
         std::vector<Vertex> vertices;
         Texture playerTexture;
-        bool cameraMode = true; // 控制第三人称和第一人称切换
         glm::vec3 velocity = glm::vec3(0.0f, 0.0f, 0.0f);
         glm::vec3 playerSize = glm::vec3(0.6f, 1.8f, 0.6f);
         bool isOnGround = false;            // 是否在地面上
@@ -115,6 +114,7 @@ class Player
     
     public:
         unsigned int EBO, VAO, VBO;
+        bool cameraMode = true; // 控制第三人称和第一人称切换
         Camera camera;
         glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f);   // 玩家脚底中间的坐标
         AABB playerBox;
@@ -347,7 +347,7 @@ void Player::upload_data(char const* path)
 void Player::bind_player_texture(Shader& playerShader)
 {
     playerShader.use();
-    glActiveTexture(GL_TEXTURE1);
+    glActiveTexture(GL_TEXTURE2);
     glBindTexture(GL_TEXTURE_2D, playerTexture.TextureID);
     glActiveTexture(GL_TEXTURE0);
 }

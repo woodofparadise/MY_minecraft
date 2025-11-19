@@ -160,6 +160,8 @@ void render_selection_box(const glm::ivec3& blockPos, Shader& selectionShader, g
 
     // 启用线框模式
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+    // glDisable(GL_DEPTH_TEST);
     
     // 使用线框着色器
     selectionShader.use();
@@ -180,6 +182,8 @@ void render_selection_box(const glm::ivec3& blockPos, Shader& selectionShader, g
     
     // 恢复填充模式
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+    // glEnable(GL_DEPTH_TEST);
 }
 
 bool is_overlap_with_player(const glm::vec3& playerPos, const glm::ivec3& blockPos)
