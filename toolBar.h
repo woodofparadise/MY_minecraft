@@ -33,7 +33,7 @@ private:
 
 void toolBar::set_toolbar()
 {    
-    bar.set_HUDitem(80.0f, 720.0f, glm::vec2(SCR_WIDTH/2.0f, 60.0f), "./widgets.png", glm::vec2(1.0f/256.0f, 235.0f/256.0f), glm::vec2(181.0f/256.0f, 255.0f/256.0f));
+    bar.set_HUDitem(80.0f, 720.0f, glm::vec2(SCR_WIDTH/2.0f, 60.0f), "./Textures/widgets.png", glm::vec2(1.0f/256.0f, 235.0f/256.0f), glm::vec2(181.0f/256.0f, 255.0f/256.0f));
     for(int i = 0; i < 9; i++)
     {
         blockBars[i].set_HUDitem(60.0f, 60.0f, glm::vec2(SCR_WIDTH/2.0f+80*(i-4), 60.0f), nullptr);

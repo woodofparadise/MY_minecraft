@@ -79,8 +79,8 @@ class Game
             // 初始化人物和地形
             blockShader.use();
             
-            player.upload_data("./steve.png");
-            terrain.init_terrain(this->seed, player.position, "./DefaultPack.png");
+            player.upload_data("./Textures/steve.png");
+            terrain.init_terrain(this->seed, player.position, "./Textures/DefaultPack.png");
             terrain.bind_block_texture(blockShader);
             player.bind_player_texture(blockShader);
             player.set_position(glm::vec3(0.5f, terrain.get_height(player.position), 0.5f));
@@ -89,7 +89,7 @@ class Game
 
             HUDShader.use();
             HUDitems.resize(1);
-            HUDitems[0].set_HUDitem(25.0f, 25.0f, glm::vec2(SCR_WIDTH/2.0f, SCR_HEIGHT/2.0f), "./cursor.png");
+            HUDitems[0].set_HUDitem(25.0f, 25.0f, glm::vec2(SCR_WIDTH/2.0f, SCR_HEIGHT/2.0f), "./Textures/cursor.png");
             HUDitems[0].bind_item_texture(HUDShader, 3);
             HUDShader.set_int("cursorTexture", 3);
             toolbar.set_toolbar();
