@@ -1,9 +1,9 @@
 #ifndef HUDPAINTER_H
 #define HUDPAINTER_H
 
-#include "texture.h"
-#include "Shader.h"
-#include "preDefined.h"
+#include "../render/texture.h"
+#include "../render/Shader.h"
+#include "../core/preDefined.h"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>

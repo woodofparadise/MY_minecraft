@@ -2,8 +2,8 @@
 #define TERRAIN_H
 
 #include "chunk.h"
-#include "Shader.h"
-#include "texture.h"
+#include "../render/Shader.h"
+#include "../render/texture.h"
 #include <map>
 #include <memory>
 #include <utility>

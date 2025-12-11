@@ -1,11 +1,11 @@
 #ifndef PLAYER_H
 #define PLAYER_H
 
-#include "texture.h"
-#include "Shader.h"
-#include "camera.h"
+#include "../render/texture.h"
+#include "../render/Shader.h"
+#include "../core/camera.h"
 #include "collision.h"
-#include "toolBar.h"
+#include "../ui/toolBar.h"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>

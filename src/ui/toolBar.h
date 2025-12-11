@@ -1,11 +1,11 @@
 #ifndef TOOLBAR_H
 #define TOOLBAR_H
 
-#include "texture.h"
-#include "Shader.h"
-#include "preDefined.h"
+#include "../render/texture.h"
+#include "../render/Shader.h"
+#include "../core/preDefined.h"
 #include "HUDpainter.h"
-#include "block.h"
+#include "../world/block.h"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>

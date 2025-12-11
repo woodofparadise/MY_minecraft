@@ -6,7 +6,7 @@
 #include <glm/gtc/type_ptr.hpp>
 #include "block.h"
 #include "perlin_noise.h"
-#include "basic_struct.h"
+#include "../render/basic_struct.h"
 #include <vector>
 
 const int chunkSize = 64;

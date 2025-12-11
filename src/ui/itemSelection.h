@@ -1,8 +1,8 @@
 #ifndef ITEMSELECTION_H
 #define ITEMSELECTION_H
 
-#include "Shader.h"
-#include "terrain.h"
+#include "../render/Shader.h"
+#include "../world/terrain.h"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
