@@ -19,8 +19,6 @@ class Chunk
         std::vector<std::vector<int> > heightMap;
         std::vector<Vertex> vertices;
 
-        glm::vec2 get_tex_coord(int blockType, int face) const;
-
         void create_face(Vertex& vertex1, Vertex& vertex2, Vertex& vertex3, Vertex& vertex4);
 
         void upload_data();
@@ -56,39 +54,6 @@ class Chunk
             if (EBO != 0) glDeleteBuffers(1, &EBO);
         }
 };
-
-glm::vec2 Chunk::get_tex_coord(int blockType, int face) const
-{
-    // face = 1/2/3(上面/下面/侧面)
-    switch(blockType)
-    {
-        case(GRASS):
-        {
-            if(face == 1)
-            {
-                return glm::vec2(0.0f, 1.0f);
-            }
-            return glm::vec2((float)(face)/16.0f, 1.0f);
-        }
-        case(STONE):
-        {
-            return glm::vec2((float)1.0f/16.0f, 1.0f);
-        }
-        case(SAND):
-        {
-            return glm::vec2((float)2.0f/16.0f, 1.0f-(float)1.0f/16.0f);
-        }
-        case(WATER):
-        {
-            return glm::vec2((float)13.0f/16.0f, 1.0f-(float)12.0f/16.0f);
-        }
-        case(SOIL):
-        {
-            return glm::vec2((float)2.0f/16.0f, 1.0f);
-        }
-    }
-    return glm::vec2(0.0f);
-}
 
 void Chunk::create_face(Vertex& vertex1, Vertex& vertex2, Vertex& vertex3, Vertex& vertex4)
 {

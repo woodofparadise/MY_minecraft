@@ -11,6 +11,7 @@ class Texture
 {
     public:
         unsigned int TextureID;
+        bool isInit = false;
         Texture()
         {
 
@@ -63,6 +64,7 @@ void Texture::load_texture(char const * path)
         std::cout << "Texture failed to load at path: " << path << std::endl;
         stbi_image_free(data);
     }
+    isInit = true;
     TextureID = textureID;
     return ;
 }

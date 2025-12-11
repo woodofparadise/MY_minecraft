@@ -5,6 +5,7 @@
 #include "Shader.h"
 #include "camera.h"
 #include "collision.h"
+#include "toolBar.h"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -341,6 +342,7 @@ void Player::upload_data(char const* path)
     glEnableVertexAttribArray(0);
     
     playerTexture.load_texture(path);
+
     return ;
 }
 
