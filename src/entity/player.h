@@ -111,7 +111,7 @@ class Player
         glm::vec3 playerSize = glm::vec3(0.6f, 1.8f, 0.6f);
         bool isOnGround = false;            // 是否在地面上
         bool isJumping = false;     // 是否正在跳跃
-        float jumpForce = 0.1f;     // 跳跃初速度
+        float jumpForce = 0.12f;     // 跳跃初速度
     
     public:
         unsigned int EBO, VAO, VBO;
@@ -418,7 +418,7 @@ void Player::update_position(Terrain& terrain, float& deltaTime)
     // 更新相机位置
     if(cameraMode)
     {
-        camera.set_position(position+glm::vec3(camera.cameraFront.x, ARM_LEG_SIZE_Y+BODY_SIZE_Y+HEAD_SIZE/2, HEAD_SIZE*(0.65+camera.cameraFront.z)));
+        camera.set_position(position+glm::vec3(0.0f, ARM_LEG_SIZE_Y+BODY_SIZE_Y+HEAD_SIZE/2, 0.0f));
     }
     else
     {

@@ -37,8 +37,6 @@ class Game
         float lastX = SCR_WIDTH/2;      // 鼠标上一帧的横坐标
         float lastY = SCR_HEIGHT/2;     // 鼠标上一帧的纵坐标
         bool firstMouse = true;         // 标记鼠标是否是第一次进入游戏界面范围
-        bool spaceKeyPressed = false;   // 标记空格键(控制跳跃)的按下状态
-        bool RKeyPressed = false;       // 标记R键(控制视角切换)的按下状态
         bool blockSelected = false;     // 标记是否有效选中了一个方块
         int seed;                       // 世界种子
         GLFWwindow* window;             // 游戏窗口
@@ -240,6 +238,18 @@ class Game
                 {
                     game->toolbar.selectedBlock = key - GLFW_KEY_0 - 1;
                 }
+                if(key == GLFW_KEY_R)
+                {
+                    game->player.switch_camera_mode();
+                }
+                if(key == GLFW_KEY_SPACE)
+                {
+                    game->player.jump();
+                }
+                if(key == GLFW_KEY_ESCAPE)
+                {
+                    glfwSetWindowShouldClose(window, true);
+                }
             }
         }
 
@@ -259,28 +269,6 @@ class Game
                 game->player.move(LEFT, game->deltaTime);
             if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
                 game->player.move(RIGHT, game->deltaTime);
-            if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS && !game->RKeyPressed)
-            {
-                game->RKeyPressed = true;
-                game->player.switch_camera_mode();
-            }
-            else if (game->RKeyPressed && glfwGetKey(window, GLFW_KEY_R) == GLFW_RELEASE) 
-            {
-                game->RKeyPressed = false;
-            }   
-            if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS && !game->spaceKeyPressed) 
-            {
-                game->spaceKeyPressed = true;
-                game->player.jump();
-            } 
-            else if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_RELEASE) 
-            {
-                game->spaceKeyPressed = false;
-            }
-            if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-            {
-                glfwSetWindowShouldClose(window, true);
-            }
         }
 
         static void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
