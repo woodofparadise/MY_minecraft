@@ -15,7 +15,7 @@ const int chunkHeight = 128;
 class Chunk
 {
     private:
-        std::vector<std::vector<std::vector<unsigned int> > > chunkBlocks;
+        std::vector<std::vector<std::vector<BLOCK_TYPE> > > chunkBlocks;
         std::vector<std::vector<int> > heightMap;
         std::vector<Vertex> vertices;
 
@@ -37,14 +37,14 @@ class Chunk
             return heightMap[chunkSize-1-j][i];
         }
 
-        int get_block_type(int i, int j, int k) const
+        BLOCK_TYPE get_block_type(int i, int j, int k) const
         {
             return chunkBlocks[chunkSize-1-j][i][k];
         }
 
         void update_data(const Chunk* left, const Chunk* right, const Chunk* forward, const Chunk* back);
 
-        bool set_block(int i, int j, int k, int blockType);
+        bool set_block(int i, int j, int k, BLOCK_TYPE blockType);
 
         ~Chunk()
         {
@@ -200,11 +200,11 @@ void Chunk::update_data(const Chunk* left, const Chunk* right, const Chunk* forw
     vector<unsigned int>().swap(indices);
     
     // 预计算纹理坐标以减少函数调用
-    glm::vec2 sideTexCoords[6]; // 存储6种方块的侧面纹理坐标
-    glm::vec2 topTexCoords[6];  // 存储6种方块的顶部纹理坐标  
-    glm::vec2 bottomTexCoords[6]; // 存储6种方块的底部纹理坐标
+    glm::vec2 sideTexCoords[12]; // 存储6种方块的侧面纹理坐标
+    glm::vec2 topTexCoords[12];  // 存储6种方块的顶部纹理坐标  
+    glm::vec2 bottomTexCoords[12]; // 存储6种方块的底部纹理坐标
     
-    for(int blockType = 1; blockType <= 5; blockType++)
+    for(int blockType = 1; blockType <= 11; blockType++)
     {
         sideTexCoords[blockType] = get_tex_coord(blockType, 3);
         topTexCoords[blockType] = get_tex_coord(blockType, 1);
@@ -242,7 +242,7 @@ void Chunk::update_data(const Chunk* left, const Chunk* right, const Chunk* forw
                 // 检查六个方向的邻居，只渲染可见面
                 
                 // 后方向 (i-1)
-                if((i-1 >= 0 && chunkBlocks[i-1][j][k] == AIR) || (i == 0 && back && back->get_block_type(j, 0, k) == AIR))
+                if((i-1 >= 0 && is_transparent(chunkBlocks[i-1][j][k])) || (i == 0 && back && is_transparent(back->get_block_type(j, 0, k))))
                 {
                     Vertex vertex1 = {glm::vec3(xPos, yPos+1, zPos), glm::vec3(-1, 0, 0), sideTex};
                     Vertex vertex2 = {glm::vec3(xPos+1, yPos+1, zPos), glm::vec3(-1, 0, 0), sideTex + texRight};
@@ -252,7 +252,7 @@ void Chunk::update_data(const Chunk* left, const Chunk* right, const Chunk* forw
                 }
                 
                 // 前方向 (i+1)
-                if((i+1 < chunkSize && chunkBlocks[i+1][j][k] == AIR) || (i == chunkSize-1 && forward && forward->get_block_type(j, chunkSize-1, k) == AIR))
+                if((i+1 < chunkSize && is_transparent(chunkBlocks[i+1][j][k])) || (i == chunkSize-1 && forward && is_transparent(forward->get_block_type(j, chunkSize-1, k))))
                 {
                     Vertex vertex1 = {glm::vec3(xPos, yPos+1, nextZPos), glm::vec3(1, 0, 0), sideTex};
                     Vertex vertex2 = {glm::vec3(xPos+1, yPos+1, nextZPos), glm::vec3(1, 0, 0), sideTex + texRight};
@@ -262,7 +262,7 @@ void Chunk::update_data(const Chunk* left, const Chunk* right, const Chunk* forw
                 }
                 
                 // 左方向 (j-1)
-                if((j-1 >= 0 && chunkBlocks[i][j-1][k] == AIR) || (j == 0 && left && left->get_block_type(chunkSize-1, chunkSize-1-i, k) == AIR))
+                if((j-1 >= 0 && is_transparent(chunkBlocks[i][j-1][k])) || (j == 0 && left && is_transparent(left->get_block_type(chunkSize-1, chunkSize-1-i, k))))
                 {
                     Vertex vertex1 = {glm::vec3(xPos, yPos+1, zPos), glm::vec3(0, 0, -1), sideTex};
                     Vertex vertex2 = {glm::vec3(xPos, yPos+1, nextZPos), glm::vec3(0, 0, -1), sideTex + texRight};
@@ -272,7 +272,7 @@ void Chunk::update_data(const Chunk* left, const Chunk* right, const Chunk* forw
                 }
                 
                 // 右方向 (j+1)
-                if((j+1 < chunkSize && chunkBlocks[i][j+1][k] == AIR) || (j == chunkSize-1 && right && right->get_block_type(0, chunkSize-1-i, k) == AIR))
+                if((j+1 < chunkSize && is_transparent(chunkBlocks[i][j+1][k])) || (j == chunkSize-1 && right && is_transparent(right->get_block_type(0, chunkSize-1-i, k))))
                 {
                     Vertex vertex1 = {glm::vec3(xPos+1, yPos+1, zPos), glm::vec3(0, 0, 1), sideTex};
                     Vertex vertex2 = {glm::vec3(xPos+1, yPos+1, nextZPos), glm::vec3(0, 0, 1), sideTex + texRight};
@@ -282,7 +282,7 @@ void Chunk::update_data(const Chunk* left, const Chunk* right, const Chunk* forw
                 }
                 
                 // 下方向 (k-1)
-                if(k-1 >= 0 && chunkBlocks[i][j][k-1] == AIR)
+                if(k-1 >= 0 && is_transparent(chunkBlocks[i][j][k-1]))
                 {
                     Vertex vertex1 = {glm::vec3(xPos, yPos, zPos), glm::vec3(0, -1, 0), bottomTex};
                     Vertex vertex2 = {glm::vec3(xPos, yPos, nextZPos), glm::vec3(0, -1, 0), bottomTex + texRight};
@@ -292,7 +292,7 @@ void Chunk::update_data(const Chunk* left, const Chunk* right, const Chunk* forw
                 }
                 
                 // 上方向 (k+1)
-                if(k+1 < chunkHeight && chunkBlocks[i][j][k+1] == AIR)
+                if(k+1 < chunkHeight && is_transparent(chunkBlocks[i][j][k+1]))
                 {
                     Vertex vertex1 = {glm::vec3(xPos, yPos+1, zPos), glm::vec3(0, 1, 0), topTex};
                     Vertex vertex2 = {glm::vec3(xPos, yPos+1, nextZPos), glm::vec3(0, 1, 0), topTex + texRight};
@@ -308,7 +308,7 @@ void Chunk::update_data(const Chunk* left, const Chunk* right, const Chunk* forw
     return ;
 }
 
-bool Chunk::set_block(int i, int j, int k, int blockType)
+bool Chunk::set_block(int i, int j, int k, BLOCK_TYPE blockType)
 {
     if(k < 0 || k >= chunkHeight)
     {

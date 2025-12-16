@@ -48,7 +48,7 @@ class Terrain
 
         int get_height(const glm::vec3& position);
 
-        int get_block_type(const glm::vec3& position);
+        BLOCK_TYPE get_block_type(const glm::vec3& position);
 
         bool destroy_block(glm::ivec3& selectedBlock);
 
@@ -61,7 +61,7 @@ class Terrain
         }
 };
 
-int Terrain::get_block_type(const glm::vec3& position)
+BLOCK_TYPE Terrain::get_block_type(const glm::vec3& position)
 {
     chunk_index_x = floor((float)(position.x+chunkSize/2) / (float)chunkSize);
     chunk_index_z = floor((float)(position.z+chunkSize/2) / (float)chunkSize);
