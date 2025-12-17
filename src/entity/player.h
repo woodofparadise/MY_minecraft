@@ -127,9 +127,9 @@ class Player
 
         void draw_player(Shader& playerShader);
 
-        void move(int mode, float deltaTime);
+        void move(const MOVE_MODE& mode, const float& deltaTime);
 
-        void update_position(Terrain& terrain, float& deltaTime);
+        void update_position(Terrain& terrain, const float& deltaTime);
 
         void set_position(glm::vec3 initPosition)
         {
@@ -371,7 +371,7 @@ void Player::draw_player(Shader& playerShader)
     glBindVertexArray(0);
 }
 
-void Player::move(int mode, float deltaTime)
+void Player::move(const MOVE_MODE& mode, const float& deltaTime)
 {   
     switch(mode)
     {
@@ -393,7 +393,7 @@ void Player::jump()
     }
 }
 
-void Player::update_position(Terrain& terrain, float& deltaTime)
+void Player::update_position(Terrain& terrain, const float& deltaTime)
 {
     // 根据速度更新位置
     resolve_collisions(position, playerSize, velocity, playerBox, terrain);

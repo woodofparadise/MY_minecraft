@@ -109,7 +109,7 @@ Chunk::Chunk(PerlinNoice& perlinNoice, int x, int y)
         {
             chunkBlocks[chunkSize-1-i][j].resize(chunkHeight, AIR);
             // 使用更平滑的噪声值，范围在 -1 到 1 之间
-            double noiseValue = perlinNoice.get_2D_perlin_noice((double)x+step*i+step/2, (double)y+step*j+step/2);
+            double noiseValue = perlinNoice.get_2D_perlin_noice((double)x+step*j+step/2, (double)y+step*i+step/2);
             
             // 计算地形高度，使用更自然的映射，确保有足够的水下地形
             int height = floor((double)chunkHeight/2 * (noiseValue + 1.0f) * 0.6f + chunkHeight/3.0f);
