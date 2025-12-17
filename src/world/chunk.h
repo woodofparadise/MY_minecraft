@@ -46,6 +46,8 @@ class Chunk
 
         bool set_block(int i, int j, int k, BLOCK_TYPE blockType);
 
+        double generate_height(PerlinNoice& perlinNoice, double x, double z);
+
         ~Chunk()
         {
             // // 释放前检查ID是否有效（0是安全的，glDelete会忽略）
@@ -108,17 +110,23 @@ Chunk::Chunk(PerlinNoice& perlinNoice, int x, int y)
         for(int j = 0; j < chunkSize; j++)
         {
             chunkBlocks[chunkSize-1-i][j].resize(chunkHeight, AIR);
+
             // 使用更平滑的噪声值，范围在 -1 到 1 之间
-            double noiseValue = perlinNoice.get_2D_perlin_noice((double)x+step*j+step/2, (double)y+step*i+step/2);
+            double noiseValue = perlinNoice.get_2D_perlin_noice((double)x+step*j, (double)y+step*i);
             
-            // 计算地形高度，使用更自然的映射，确保有足够的水下地形
-            int height = floor((double)chunkHeight/2 * (noiseValue + 1.0f) * 0.6f + chunkHeight/3.0f);
+            // // 计算地形高度，使用更自然的映射，确保有足够的水下地形
+            // int height = floor((double)chunkHeight/2 * (noiseValue + 1.0f) * 0.6f + chunkHeight/3.0f);
+
+            // 使用分形噪声+多噪声图混合接近原版效果
+            int height = floor(generate_height(perlinNoice, x*chunkSize+j, y*chunkSize+i));
+
+
             height = max(1, min(height, chunkHeight-2)); // 限制高度范围
             heightMap[chunkSize-1-i][j] = height;
 
-            // 计算水线高度（基于噪声值动态调整）
-            int waterLevel = chunkHeight/2 + 5; // 减少水线变化幅度
-            waterLevel = max(chunkHeight/3, min(waterLevel, chunkHeight*2/3)); // 限制水线范围
+            // 计算水线高度
+            int waterLevel = chunkHeight/2;
+            // waterLevel = max(chunkHeight/3, min(waterLevel, chunkHeight*2/3)); // 限制水线范围
 
             // 如果在水下
             if(height < waterLevel)
@@ -171,7 +179,7 @@ Chunk::Chunk(PerlinNoice& perlinNoice, int x, int y)
                 chunkBlocks[chunkSize-1-i][j][height-1] = GRASS;
                 
                 // 如果地形较高，可能有石头露出
-                if(height > waterLevel + 15 && rand() % 100 < 20)
+                if(height > waterLevel + 32 && rand() % 100 < 20)
                 {
                     chunkBlocks[chunkSize-1-i][j][height-1] = STONE;
                 }
@@ -317,6 +325,51 @@ bool Chunk::set_block(int i, int j, int k, BLOCK_TYPE blockType)
     isModified = true;
     chunkBlocks[chunkSize-1-j][i][k] = blockType;
     return true;
+}
+
+// 样条曲线：将 [-1,1] 的 continental 值映射到合理的基础高度
+double spline_map_continental(double c) 
+{
+    // c < -0.4: 深海
+    // c ∈ [-0.4, -0.1]: 浅海
+    // c ∈ [-0.1, 0.1]: 海岸/平原
+    // c ∈ [0.1, 0.5]: 丘陵
+    // c > 0.5: 山地
+    if(c < -0.4) return 30 + (c + 1.0) * 20;      // 深海: 18-42
+    if(c < -0.1) return 45 + (c + 0.4) * 40;      // 浅海: 45-57
+    if(c < 0.1) return 62 + (c + 0.1) * 30;       // 海岸: 62-68
+    if(c < 0.5) return 68 + (c - 0.1) * 50;       // 丘陵: 68-88
+    
+    return 88 + (c - 0.5) * 60;                   // 山地: 88-118
+}
+
+double Chunk::generate_height(PerlinNoice& perlinNoice, double worldX, double worldZ)
+{
+    // 使用世界坐标而非区块相对坐标
+    // 频率调整为更合理的值
+
+    // 大陆性：控制海洋/陆地，约500-1000格一个周期
+    double continental = perlinNoice.get_fbm_noise(
+        worldX * 0.005, worldZ * 0.005, 4, 0.5, 2.0);
+
+    // 侵蚀度：控制平原/山地，约100-200格一个周期
+    double erosion = perlinNoice.get_fbm_noise(
+        worldX * 0.008 + 1000.0f, worldZ * 0.008 + 1000.0f, 4, 0.5, 2.0);
+
+    // 峰谷：局部起伏，约20-50格一个周期
+    double peaks = perlinNoice.get_fbm_noise(
+        worldX * 0.02 + 2000.0f, worldZ * 0.02 + 2000.0f, 6, 0.5, 2.0);
+
+    // 使用样条曲线映射 continental 值
+    double continentHeight = spline_map_continental(continental);
+
+    // erosion 控制 peaks 的影响程度（高侵蚀=更平坦）
+    double erosionFactor = 1.0 - (erosion + 1.0) * 0.4;  // [0.2, 1.0]
+    erosionFactor = max(0.1, erosionFactor);
+
+    double peakHeight = peaks * 25 * erosionFactor;
+
+    return continentHeight + peakHeight;
 }
 
 #endif

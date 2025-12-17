@@ -103,6 +103,23 @@ public:
         return 6*pow(x, 5) - 15*pow(x, 4) + 10*pow(x, 3);
     }
     
+    double get_fbm_noise(double x, double y, int octaves, double persistence, double lacunarity) 
+    {
+        double total = 0.0;
+        double amplitude = 1.0;
+        double frequency = 1.0;
+        double maxValue = 0.0;
+
+        for(int i = 0; i < octaves; i++) 
+        {
+            total += get_2D_perlin_noice(x * frequency, y * frequency) * amplitude;
+            maxValue += amplitude;
+            amplitude *= persistence;  // 每层振幅衰减
+            frequency *= lacunarity;   // 每层频率增加
+        }
+        return total / maxValue;  // 归一化
+    }
+
 };
 
 #endif
