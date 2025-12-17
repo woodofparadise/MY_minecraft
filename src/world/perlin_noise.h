@@ -72,17 +72,18 @@ public:
         double V4 = fast_dot(bb, distBB);
 
         double u = fade(xf), v = fade(yf);
-        double V12 = V1 + u*(V2-V1);
-        double V34 = V3 + u*(V4-V3);
+        double V12 = V1 + v*(V2-V1);
+        double V34 = V3 + v*(V4-V3);
         // cout << V12 << " " << V34 << " " << u << " " << v << endl;
-        double result = V12 + v*(V34-V12);
+        double result = V12 + u*(V34-V12);
 
         return result;
     }
 
     double fast_dot(int index, glm::vec2 dist)
     {
-        switch(index & 0x8)
+        // cout << index << " " << (index&0x7) << endl;
+        switch(index & 0x7)
         {
             case 0x0: return dist.x + dist.y;
             case 0x1: return -dist.x + dist.y;
