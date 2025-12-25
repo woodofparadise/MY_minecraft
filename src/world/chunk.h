@@ -122,7 +122,6 @@ Chunk::Chunk(PerlinNoice& perlinNoice, int x, int y)
 
 
             height = max(1, min(height, chunkHeight-2)); // 限制高度范围
-            heightMap[chunkSize-1-i][j] = height;
 
             // 计算水线高度
             int waterLevel = chunkHeight/2;
@@ -185,15 +184,20 @@ Chunk::Chunk(PerlinNoice& perlinNoice, int x, int y)
                 }
             }
             
-            // 添加一些随机变化
-            if(rand() % 100 < 2) // 2% 几率有小变化
+            // cout << height << endl;
+            for(int k = 1; k < height; k++)
             {
-                int variationHeight = height + (rand() % 3 - 1); // -1, 0, 1 的高度变化
-                if(variationHeight >= 0 && variationHeight < chunkHeight)
+                double caveNoise = perlinNoice.get_3D_perlin_noice(((double)x+step*j)*3, ((double)y+step*i)*3, (double)k*0.1f);
+                if(caveNoise > 0.4f)
                 {
-                    heightMap[chunkSize-1-i][j] = variationHeight;
+                    chunkBlocks[chunkSize-1-i][j][k] = AIR;
+                }
+                else
+                {
+                    heightMap[chunkSize-1-i][j] = k;
                 }
             }
+            // heightMap[chunkSize-1-i][j] = max(heightMap[chunkSize-1-i][j], waterLevel);
         }
     }
 

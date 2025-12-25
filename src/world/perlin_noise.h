@@ -120,6 +120,87 @@ public:
         return total / maxValue;  // 归一化
     }
 
+    double fast_dot_3D(int index, glm::vec3 dist)
+    {
+        switch(index & 0xF)
+        {
+            case 0x0: return dist.x + dist.y;
+            case 0x1: return -dist.x + dist.y;
+            case 0x2: return  dist.x - dist.y;
+            case 0x3: return -dist.x - dist.y;
+            case 0x4: return  dist.x + dist.z;
+            case 0x5: return -dist.x + dist.z;
+            case 0x6: return  dist.x - dist.z;
+            case 0x7: return -dist.x - dist.z;
+            case 0x8: return  dist.y + dist.z;
+            case 0x9: return -dist.y + dist.z;
+            case 0xA: return  dist.y - dist.z;
+            case 0xB: return -dist.y - dist.z;
+        }
+        return 0;
+    }
+
+    double lerp(double a, double b, double t)
+    {
+        return a + t * (b - a);
+    }
+
+    double get_3D_perlin_noice(double x, double y, double z)
+    {
+        int xi = (int)floor(x) & 255;
+        int yi = (int)floor(y) & 255;
+        int zi = (int)floor(z) & 255;
+
+        double xf = x - floor(x);
+        double yf = y - floor(y);
+        double zf = z - floor(z);
+
+        int aaa = perm[perm[perm[xi] + yi] + zi];         // (0,0,0)
+        int aab = perm[perm[perm[xi] + yi] + zi + 1];     // (0,0,1)
+        int aba = perm[perm[perm[xi] + yi + 1] + zi];     // (0,1,0)
+        int abb = perm[perm[perm[xi] + yi + 1] + zi + 1]; // (0,1,1)
+        int baa = perm[perm[perm[xi + 1] + yi] + zi];     // (1,0,0)
+        int bab = perm[perm[perm[xi + 1] + yi] + zi + 1]; // (1,0,1)
+        int bba = perm[perm[perm[xi + 1] + yi + 1] + zi]; // (1,1,0)
+        int bbb = perm[perm[perm[xi + 1] + yi + 1] + zi + 1]; // (1,1,1)
+
+
+        glm::vec3 v000 = glm::vec3(xf,     yf,     zf);
+        glm::vec3 v001 = glm::vec3(xf,     yf,     zf - 1);
+        glm::vec3 v010 = glm::vec3(xf,     yf - 1, zf);
+        glm::vec3 v011 = glm::vec3(xf,     yf - 1, zf - 1);
+        glm::vec3 v100 = glm::vec3(xf - 1, yf,     zf);
+        glm::vec3 v101 = glm::vec3(xf - 1, yf,     zf - 1);
+        glm::vec3 v110 = glm::vec3(xf - 1, yf - 1, zf);
+        glm::vec3 v111 = glm::vec3(xf - 1, yf - 1, zf - 1);
+
+        double n000 = fast_dot_3D(aaa, v000);
+        double n001 = fast_dot_3D(aab, v001);
+        double n010 = fast_dot_3D(aba, v010);
+        double n011 = fast_dot_3D(abb, v011);
+        double n100 = fast_dot_3D(baa, v100);
+        double n101 = fast_dot_3D(bab, v101);
+        double n110 = fast_dot_3D(bba, v110);
+        double n111 = fast_dot_3D(bbb, v111);
+
+        double u = fade(xf), v = fade(yf), w = fade(zf);
+
+        // 先沿x轴插值（4次）
+        double x00 = lerp(n000, n100, u);
+        double x01 = lerp(n001, n101, u);
+        double x10 = lerp(n010, n110, u);
+        double x11 = lerp(n011, n111, u);
+
+        // 再沿y轴插值（2次）
+        double y0 = lerp(x00, x10, v);
+        double y1 = lerp(x01, x11, v);
+
+        // 最后沿z轴插值（1次）
+        double result = lerp(y0, y1, w);
+
+        return result;
+    }
+
 };
 
 #endif

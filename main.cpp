@@ -11,7 +11,7 @@ int main()
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); //使用核心模式
 
     bool gameInitStatus = true;
-    Game game(gameInitStatus);  // 记录游戏中的所有状态和信息
+    Game game(gameInitStatus, 114514);  // 记录游戏中的所有状态和信息
     if(!gameInitStatus)
     {
         cout << "game init failed" << endl;
