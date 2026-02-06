@@ -9,7 +9,7 @@
 #include<math.h>
 
 using namespace std;
-class PerlinNoice
+class PerlinNoise
 {
 private:
     int seed;
@@ -19,7 +19,7 @@ private:
     // };
     int perm[512];
 public:
-    PerlinNoice()
+    PerlinNoise()
     {
         this->seed = 999;
         for(int i = 0; i < 256; i++) 
