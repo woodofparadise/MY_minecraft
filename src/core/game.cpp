@@ -101,6 +101,8 @@ void Game::game_loop()
             currentFPS = frameCount / fpsAccumulator;
             frameCount = 0;
             fpsAccumulator = 0.0f;
+            displayVertices = terrain.drawnVertices;
+            displayTriangles = terrain.drawnTriangles;
         }
         glfwSetCursorPos(window, SCR_WIDTH/2, SCR_HEIGHT/2);
         // glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
@@ -111,12 +113,14 @@ void Game::game_loop()
         glm::mat4 view = player.camera.get_view_matrix();                // 观察矩阵
         glm::mat4 projection = player.camera.get_projection_matrix();    // 投影矩阵
 
+        glm::mat4 vpMatrix = projection * view;                            // VP矩阵用于视锥体剔除
+
         blockShader.use();
         player.update_position(terrain, deltaTime);
-        terrain.update_terrain(player.camera.cameraPos);               // 更新地形
+        terrain.update_terrain(player.camera.cameraPos, &vpMatrix);       // 更新地形（带视锥剔除）
         blockShader.set_mat4("view", view);
         blockShader.set_mat4("projection", projection);
-        terrain.draw_terrain(blockShader);
+        terrain.draw_terrain(blockShader, vpMatrix, player.camera.cameraPos); // 绘制地形（带视锥剔除+透明排序）
         if(!player.cameraMode)
         {
             player.draw_player(blockShader);
@@ -138,12 +142,20 @@ void Game::game_loop()
         }
         toolbar.draw_toolbar(HUDShader);
 
-        // 渲染FPS
+        // 渲染FPS和统计信息
         if (textRenderer.isInitialized)
         {
             std::stringstream ss;
             ss << "FPS: " << std::fixed << std::setprecision(1) << currentFPS;
             textRenderer.renderText(textShader, ss.str(), SCR_WIDTH - 120.0f, SCR_HEIGHT - 30.0f, 0.8f, glm::vec3(1.0f, 1.0f, 1.0f));
+
+            std::stringstream ssVert;
+            ssVert << "Verts: " << displayVertices;
+            textRenderer.renderText(textShader, ssVert.str(), SCR_WIDTH - 130.0f, SCR_HEIGHT - 52.0f, 0.5f, glm::vec3(0.8f, 0.8f, 0.8f));
+
+            std::stringstream ssTri;
+            ssTri << "Tris:  " << displayTriangles;
+            textRenderer.renderText(textShader, ssTri.str(), SCR_WIDTH - 130.0f, SCR_HEIGHT - 68.0f, 0.5f, glm::vec3(0.8f, 0.8f, 0.8f));
         }
 
         // 检查并调用事件，交换缓冲

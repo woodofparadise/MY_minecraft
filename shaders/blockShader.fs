@@ -22,9 +22,6 @@ void main()
         case(1):{FragColor = texture(playerTexture, TexCoords); break;}
         default:{FragColor = vec4(0.5f);}
     }
-    if (FragColor.a < 0.1)
-    {
-        discard;
-    }
+
     return ;
 }

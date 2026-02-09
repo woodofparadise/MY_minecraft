@@ -1,11 +1,39 @@
 #include <glad/glad.h>
 #include "chunk.h"
+#include <algorithm>
 
 using namespace std;
 
+// 六个面的顶点偏移（相对于方块原点 (xPos, yPos, zPos)）
+// 方块占据 [x, x+1] × [y, y+1] × [z, z+1]
+const glm::vec3 Chunk::faceVertexOffset[6][4] = {
+    // [0] Back (i-1):    z=1 平面（+Z 面）
+    {{0,1,1}, {1,1,1}, {0,0,1}, {1,0,1}},
+    // [1] Forward (i+1): z=0 平面（-Z 面）
+    {{0,1,0}, {1,1,0}, {0,0,0}, {1,0,0}},
+    // [2] Left (j-1):    x=0 平面（-X 面）
+    {{0,1,1}, {0,1,0}, {0,0,1}, {0,0,0}},
+    // [3] Right (j+1):   x=1 平面（+X 面）
+    {{1,1,1}, {1,1,0}, {1,0,1}, {1,0,0}},
+    // [4] Down (k-1):    y=0 平面（-Y 面）
+    {{0,0,1}, {0,0,0}, {1,0,1}, {1,0,0}},
+    // [5] Up (k+1):      y=1 平面（+Y 面）
+    {{0,1,1}, {0,1,0}, {1,1,1}, {1,1,0}},
+};
+
+// 六个面的几何法线（mesh 空间，朝外）
+const glm::vec3 Chunk::faceNormal[6] = {
+    {0, 0, 1},   // [0] Back:    +Z
+    {0, 0,-1},   // [1] Forward: -Z
+    {-1, 0, 0},  // [2] Left:    -X
+    {1, 0, 0},   // [3] Right:   +X
+    {0,-1, 0},   // [4] Down:    -Y
+    {0, 1, 0},   // [5] Up:      +Y
+};
 
 void Chunk::create_face(Vertex& vertex1, Vertex& vertex2, Vertex& vertex3, Vertex& vertex4)
 {
+
     vertices.push_back(vertex1);
     vertices.push_back(vertex2);
     vertices.push_back(vertex3);
@@ -17,6 +45,23 @@ void Chunk::create_face(Vertex& vertex1, Vertex& vertex2, Vertex& vertex3, Verte
     indices.push_back((unsigned int)vertices.size()-2);
     indices.push_back((unsigned int)vertices.size()-1);
     return ;
+}
+
+void Chunk::create_face_transparent(Vertex& vertex1, Vertex& vertex2, Vertex& vertex3, Vertex& vertex4)
+{
+    verticesT.push_back(vertex1);
+    verticesT.push_back(vertex2);
+    verticesT.push_back(vertex3);
+    verticesT.push_back(vertex4);
+    indicesT.push_back((unsigned int)verticesT.size()-2);
+    indicesT.push_back((unsigned int)verticesT.size()-3);
+    indicesT.push_back((unsigned int)verticesT.size()-4);
+    indicesT.push_back((unsigned int)verticesT.size()-3);
+    indicesT.push_back((unsigned int)verticesT.size()-2);
+    indicesT.push_back((unsigned int)verticesT.size()-1);
+    // 记录面片中心用于每帧透明排序
+    transparentFaceCenters.push_back(
+        (vertex1.Position + vertex2.Position + vertex3.Position + vertex4.Position) * 0.25f);
 }
 
 void Chunk::upload_data()
@@ -48,9 +93,39 @@ void Chunk::upload_data()
     glEnableVertexAttribArray(0);
 }
 
+void Chunk::upload_data_transparent()
+{
+    // 先释放当前对象持有的资源
+    if (transparentVAO != 0) glDeleteVertexArrays(1, &transparentVAO);
+    if (transparentVBO != 0) glDeleteBuffers(1, &transparentVBO);
+    if (transparentEBO != 0) glDeleteBuffers(1, &transparentEBO);
+
+    verticesT.shrink_to_fit();
+    indicesT.shrink_to_fit();
+    glGenVertexArrays(1, &transparentVAO);
+    glBindVertexArray(transparentVAO);
+    glGenBuffers(1, &transparentVBO);
+
+    glGenBuffers(1, &transparentEBO);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, transparentEBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indicesT.size() * sizeof(unsigned int), &indicesT[0], GL_DYNAMIC_DRAW);
+
+
+    glBindBuffer(GL_ARRAY_BUFFER, transparentVBO);
+    glBufferData(GL_ARRAY_BUFFER, (size_t)(verticesT.size() * sizeof(Vertex)), &verticesT[0], GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, Position));
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, Normal));
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, Texcoord));
+    glEnableVertexAttribArray(0);
+}
+
 Chunk::Chunk(PerlinNoise& perlinNoise, int x, int y)
 {
     VAO = 0; VBO = 0; EBO = 0;
+    transparentVAO = 0; transparentVBO = 0; transparentEBO = 0;
     isModified = false;
     double step = 1.0f/CHUNK_SIZE;
     chunkBlocks.resize(CHUNK_SIZE);
@@ -174,6 +249,9 @@ void Chunk::update_data(const Chunk* left, const Chunk* right, const Chunk* forw
 {
     vector<Vertex>().swap(vertices);
     vector<unsigned int>().swap(indices);
+    vector<Vertex>().swap(verticesT);
+    vector<unsigned int>().swap(indicesT);
+    vector<glm::vec3>().swap(transparentFaceCenters);
 
     glm::vec2 texRight = glm::vec2(1.0f/16.0f, 0.0f);
     glm::vec2 texDown = glm::vec2(0.0f, -1.0f/16.0f);
@@ -201,8 +279,14 @@ void Chunk::update_data(const Chunk* left, const Chunk* right, const Chunk* forw
                 for(int face = 0; face < 6; ++face)
                 {
                     BLOCK_TYPE neighborBlock = get_neighbor_block(i, j, k, face, left, right, forward, back);
-                    if(!is_transparent(neighborBlock)) continue;              // 邻居不透明，不生成面
-                    if(neighborBlock == blockType) continue;                  // 同类型透明方块，不生成面
+                    if(!is_transparent(neighborBlock))
+                    {
+                        continue;              // 邻居不透明，不生成面
+                    } 
+                    if(neighborBlock == blockType)
+                    {
+                        continue;                  // 同类型透明方块，不生成面
+                    }
 
                     // 选择纹理：face 4=底面, face 5=顶面, 其余=侧面
                     glm::vec2 tex = (face == 5) ? topTex : (face == 4) ? bottomTex : sideTex;
@@ -211,41 +295,22 @@ void Chunk::update_data(const Chunk* left, const Chunk* right, const Chunk* forw
                     Vertex vertex2 = {blockPos + faceVertexOffset[face][1], faceNormal[face], tex + texRight};
                     Vertex vertex3 = {blockPos + faceVertexOffset[face][2], faceNormal[face], tex + texDown};
                     Vertex vertex4 = {blockPos + faceVertexOffset[face][3], faceNormal[face], tex + texRight + texDown};
-                    create_face(vertex1, vertex2, vertex3, vertex4);
+                    if(is_transparent(blockType))
+                    {
+                        create_face_transparent(vertex1, vertex2, vertex3, vertex4);
+                    }
+                    else
+                    {
+                        create_face(vertex1, vertex2, vertex3, vertex4);
+                    }
                 }
             }
         }
     }
     upload_data();
+    upload_data_transparent();
     isModified = false;
 }
-
-// 六个面的顶点偏移（相对于方块原点 (xPos, yPos, zPos)）
-// 方块占据 [x, x+1] × [y, y+1] × [z, z+1]
-const glm::vec3 Chunk::faceVertexOffset[6][4] = {
-    // [0] Back (i-1):    z=1 平面（+Z 面）
-    {{0,1,1}, {1,1,1}, {0,0,1}, {1,0,1}},
-    // [1] Forward (i+1): z=0 平面（-Z 面）
-    {{0,1,0}, {1,1,0}, {0,0,0}, {1,0,0}},
-    // [2] Left (j-1):    x=0 平面（-X 面）
-    {{0,1,1}, {0,1,0}, {0,0,1}, {0,0,0}},
-    // [3] Right (j+1):   x=1 平面（+X 面）
-    {{1,1,1}, {1,1,0}, {1,0,1}, {1,0,0}},
-    // [4] Down (k-1):    y=0 平面（-Y 面）
-    {{0,0,1}, {0,0,0}, {1,0,1}, {1,0,0}},
-    // [5] Up (k+1):      y=1 平面（+Y 面）
-    {{0,1,1}, {0,1,0}, {1,1,1}, {1,1,0}},
-};
-
-// 六个面的几何法线（mesh 空间，朝外）
-const glm::vec3 Chunk::faceNormal[6] = {
-    {0, 0, 1},   // [0] Back:    +Z
-    {0, 0,-1},   // [1] Forward: -Z
-    {-1, 0, 0},  // [2] Left:    -X
-    {1, 0, 0},   // [3] Right:   +X
-    {0,-1, 0},   // [4] Down:    -Y
-    {0, 1, 0},   // [5] Up:      +Y
-};
 
 BLOCK_TYPE Chunk::get_neighbor_block(
     int i, int j, int k,
@@ -283,6 +348,39 @@ BLOCK_TYPE Chunk::get_neighbor_block(
         return back->get_block_type(j, 0, k);
     }
     return AIR;
+}
+
+void Chunk::sort_transparent_faces(const glm::vec3& localCameraPos)
+{
+    int faceCount = (int)transparentFaceCenters.size();
+    if(faceCount <= 1) return;
+
+    // 创建面片索引数组 [0, 1, ..., N-1]
+    vector<int> faceOrder(faceCount);
+    for(int i = 0; i < faceCount; i++) faceOrder[i] = i;
+
+    // 按距离摄像机从远到近排序
+    sort(faceOrder.begin(), faceOrder.end(), [&](int a, int b) {
+        glm::vec3 da = transparentFaceCenters[a] - localCameraPos;
+        glm::vec3 db = transparentFaceCenters[b] - localCameraPos;
+        return glm::dot(da, da) > glm::dot(db, db);
+    });
+
+    // 按排序顺序重建 indicesT（每个面片固定模式: base+2, base+1, base+0, base+1, base+2, base+3）
+    for(int i = 0; i < faceCount; i++)
+    {
+        unsigned int base = faceOrder[i] * 4;
+        indicesT[i*6+0] = base + 2;
+        indicesT[i*6+1] = base + 1;
+        indicesT[i*6+2] = base + 0;
+        indicesT[i*6+3] = base + 1;
+        indicesT[i*6+4] = base + 2;
+        indicesT[i*6+5] = base + 3;
+    }
+
+    // 仅重传透明EBO（VBO不动）
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, transparentEBO);
+    glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, indicesT.size() * sizeof(unsigned int), indicesT.data());
 }
 
 bool Chunk::set_block(int i, int j, int k, BLOCK_TYPE blockType)
@@ -345,15 +443,24 @@ Chunk::Chunk(Chunk&& other) noexcept
       : chunkBlocks(std::move(other.chunkBlocks)),
         heightMap(std::move(other.heightMap)),
         vertices(std::move(other.vertices)),
+        verticesT(std::move(other.verticesT)),
+        transparentFaceCenters(std::move(other.transparentFaceCenters)),
         indices(std::move(other.indices)),
+        indicesT(std::move(other.indicesT)),
         VAO(other.VAO),
         VBO(other.VBO),
         EBO(other.EBO),
+        transparentVAO(other.transparentVAO),
+        transparentVBO(other.transparentVBO),
+        transparentEBO(other.transparentEBO),
         isModified(other.isModified)
   {
       other.VAO = 0;
       other.VBO = 0;
       other.EBO = 0;
+      other.transparentVAO = 0;
+      other.transparentVBO = 0;
+      other.transparentEBO = 0;
       other.isModified = false;
   }
 
@@ -365,21 +472,33 @@ Chunk& Chunk::operator=(Chunk&& other) noexcept
         if (VAO != 0) glDeleteVertexArrays(1, &VAO);
         if (VBO != 0) glDeleteBuffers(1, &VBO);
         if (EBO != 0) glDeleteBuffers(1, &EBO);
+        if (transparentVAO != 0) glDeleteVertexArrays(1, &transparentVAO);
+        if (transparentVBO != 0) glDeleteBuffers(1, &transparentVBO);
+        if (transparentEBO != 0) glDeleteBuffers(1, &transparentEBO);
 
         // 窃取源对象资源
         chunkBlocks = std::move(other.chunkBlocks);
         heightMap = std::move(other.heightMap);
         vertices = std::move(other.vertices);
+        verticesT = std::move(other.verticesT);
+        transparentFaceCenters = std::move(other.transparentFaceCenters);
         indices = std::move(other.indices);
+        indicesT = std::move(other.indicesT);
         VAO = other.VAO;
         VBO = other.VBO;
         EBO = other.EBO;
+        transparentVAO = other.transparentVAO;
+        transparentVBO = other.transparentVBO;
+        transparentEBO = other.transparentEBO;
         isModified = other.isModified;
 
         // 源对象置空
         other.VAO = 0;
         other.VBO = 0;
         other.EBO = 0;
+        other.transparentVAO = 0;
+        other.transparentVBO = 0;
+        other.transparentEBO = 0;
         other.isModified = false;
     }
     return *this;

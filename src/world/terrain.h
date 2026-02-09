@@ -19,6 +19,8 @@ class Terrain
         int chunk_index_x, chunk_index_z;
         Texture blockTexture;
 
+        bool is_chunk_visible(const glm::mat4& vp, int cx, int cz) const;
+
     public:
         Terrain(){};
 
@@ -34,7 +36,7 @@ class Terrain
             blockTexture.load_texture(path);
         }
 
-        void update_terrain(glm::vec3 position);
+        void update_terrain(const glm::vec3& position, const glm::mat4* vpMatrix = nullptr);
 
         void bind_block_texture(Shader& blockShader)
         {
@@ -44,7 +46,10 @@ class Terrain
             glActiveTexture(GL_TEXTURE0);
         }
 
-        void draw_terrain(Shader& blockShader);
+        unsigned int drawnVertices = 0;     // 上一帧绘制的顶点数
+        unsigned int drawnTriangles = 0;    // 上一帧绘制的三角面片数
+
+        void draw_terrain(Shader& blockShader, const glm::mat4& vpMatrix, const glm::vec3& cameraPos);
 
         int get_height(const glm::vec3& position);
 

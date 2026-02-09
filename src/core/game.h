@@ -39,6 +39,8 @@ class Game
         float fpsAccumulator = 0.0f;     // 累计时间
         int frameCount = 0;              // 帧计数
         float currentFPS = 0.0f;         // 当前FPS
+        unsigned int displayVertices = 0;   // 显示用顶点数（每0.5s更新）
+        unsigned int displayTriangles = 0;  // 显示用三角面片数（每0.5s更新）
 
         std::vector<HUDitem> HUDitems;  // 游戏画面中的HUD元素，HUDitems[0]对应屏幕中心的光标
 
