@@ -40,8 +40,7 @@ void Terrain::draw_terrain(Shader& blockShader)
             pair<int, int> index(chunk_index_x+i, chunk_index_z+j);
             // cout << index.first << " " << index.second << endl;
             glm::mat4 model = glm::mat4(1.0f);
-            // z轴位移+1是为了修正chunk.h中构造函数计算与空气接触的面加入渲染队列的时候不小心整体后移了1，懒得调整回来了
-            model = glm::translate(model, glm::vec3(index.first*CHUNK_SIZE-CHUNK_SIZE/2, 0.0f, index.second*CHUNK_SIZE-CHUNK_SIZE/2+1));
+            model = glm::translate(model, glm::vec3(index.first*CHUNK_SIZE-CHUNK_SIZE/2, 0.0f, index.second*CHUNK_SIZE-CHUNK_SIZE/2));
             blockShader.set_mat4("model", model);
             // model = glm::rotate(model, glm::radians(-60.0f), glm::vec3(1.0f, 0.0f, 0.0f));
             // model = glm::scale(model, glm::vec3(0.1f));

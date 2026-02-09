@@ -25,7 +25,7 @@ enum BLOCK_TYPE
 
 struct Block
 {
-    int type;
+    BLOCK_TYPE type;
 };
 
 glm::vec2 get_tex_coord(unsigned int blockType, int face);

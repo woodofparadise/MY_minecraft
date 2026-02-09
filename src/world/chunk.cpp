@@ -3,6 +3,7 @@
 
 using namespace std;
 
+
 void Chunk::create_face(Vertex& vertex1, Vertex& vertex2, Vertex& vertex3, Vertex& vertex4)
 {
     vertices.push_back(vertex1);
@@ -174,93 +175,42 @@ void Chunk::update_data(const Chunk* left, const Chunk* right, const Chunk* forw
     vector<Vertex>().swap(vertices);
     vector<unsigned int>().swap(indices);
 
-    // 只渲染和空气方块接触的表面，其它表面隐藏
+    glm::vec2 texRight = glm::vec2(1.0f/16.0f, 0.0f);
+    glm::vec2 texDown = glm::vec2(0.0f, -1.0f/16.0f);
+
+    // 只渲染和透明方块接触的表面，其它表面隐藏
     for(int i = CHUNK_SIZE-1; i >= 0; i--)
     {
         for(int j = 0; j < CHUNK_SIZE; j++)
         {
             for(int k = 0; k < CHUNK_HEIGHT; k++)
             {
-                int blockType = chunkBlocks[i][j][k];
-                // 跳过空气方块
+                BLOCK_TYPE blockType = chunkBlocks[i][j][k];
                 if(blockType == AIR)
                 {
                     continue;
                 }
 
-                // 预计算常用值
-                float xPos = j;
-                float yPos = k;
-                float zPos = CHUNK_SIZE-1-i;
-                float nextZPos = CHUNK_SIZE-1-(i+1);
+                glm::vec3 blockPos(j, k, CHUNK_SIZE-1-i);
 
-                // 获取纹理坐标
                 glm::vec2 sideTex = sideTexCoords[blockType];
                 glm::vec2 topTex = topTexCoords[blockType];
                 glm::vec2 bottomTex = bottomTexCoords[blockType];
 
-                glm::vec2 texRight = glm::vec2(1.0f/16.0f, 0.0f);
-                glm::vec2 texDown = glm::vec2(0.0f, -1.0f/16.0f);
-
                 // 检查六个方向的邻居，只渲染可见面
-
-                // 后方向 (i-1)
-                if((i-1 >= 0 && is_transparent(chunkBlocks[i-1][j][k])) || (i == 0 && back && is_transparent(back->get_block_type(j, 0, k))))
+                for(int face = 0; face < 6; ++face)
                 {
-                    Vertex vertex1 = {glm::vec3(xPos, yPos+1, zPos), glm::vec3(-1, 0, 0), sideTex};
-                    Vertex vertex2 = {glm::vec3(xPos+1, yPos+1, zPos), glm::vec3(-1, 0, 0), sideTex + texRight};
-                    Vertex vertex3 = {glm::vec3(xPos, yPos, zPos), glm::vec3(-1, 0, 0), sideTex + texDown};
-                    Vertex vertex4 = {glm::vec3(xPos+1, yPos, zPos), glm::vec3(-1, 0, 0), sideTex + texRight + texDown};
-                    create_face(vertex1, vertex2, vertex3, vertex4);
-                }
+                    BLOCK_TYPE neighborBlock = get_neighbor_block(i, j, k, face, left, right, forward, back);
+                    if(!is_transparent(neighborBlock)) continue;              // 邻居不透明，不生成面
+                    if(neighborBlock == blockType) continue;                  // 同类型透明方块，不生成面
 
-                // 前方向 (i+1)
-                if((i+1 < CHUNK_SIZE && is_transparent(chunkBlocks[i+1][j][k])) || (i == CHUNK_SIZE-1 && forward && is_transparent(forward->get_block_type(j, CHUNK_SIZE-1, k))))
-                {
-                    Vertex vertex1 = {glm::vec3(xPos, yPos+1, nextZPos), glm::vec3(1, 0, 0), sideTex};
-                    Vertex vertex2 = {glm::vec3(xPos+1, yPos+1, nextZPos), glm::vec3(1, 0, 0), sideTex + texRight};
-                    Vertex vertex3 = {glm::vec3(xPos, yPos, nextZPos), glm::vec3(1, 0, 0), sideTex + texDown};
-                    Vertex vertex4 = {glm::vec3(xPos+1, yPos, nextZPos), glm::vec3(1, 0, 0), sideTex + texRight + texDown};
-                    create_face(vertex1, vertex2, vertex3, vertex4);
-                }
+                    // 选择纹理：face 4=底面, face 5=顶面, 其余=侧面
+                    glm::vec2 tex = (face == 5) ? topTex : (face == 4) ? bottomTex : sideTex;
 
-                // 左方向 (j-1)
-                if((j-1 >= 0 && is_transparent(chunkBlocks[i][j-1][k])) || (j == 0 && left && is_transparent(left->get_block_type(CHUNK_SIZE-1, CHUNK_SIZE-1-i, k))))
-                {
-                    Vertex vertex1 = {glm::vec3(xPos, yPos+1, zPos), glm::vec3(0, 0, -1), sideTex};
-                    Vertex vertex2 = {glm::vec3(xPos, yPos+1, nextZPos), glm::vec3(0, 0, -1), sideTex + texRight};
-                    Vertex vertex3 = {glm::vec3(xPos, yPos, zPos), glm::vec3(0, 0, -1), sideTex + texDown};
-                    Vertex vertex4 = {glm::vec3(xPos, yPos, nextZPos), glm::vec3(0, 0, -1), sideTex + texRight + texDown};
-                    create_face(vertex1, vertex2, vertex3, vertex4);
-                }
-
-                // 右方向 (j+1)
-                if((j+1 < CHUNK_SIZE && is_transparent(chunkBlocks[i][j+1][k])) || (j == CHUNK_SIZE-1 && right && is_transparent(right->get_block_type(0, CHUNK_SIZE-1-i, k))))
-                {
-                    Vertex vertex1 = {glm::vec3(xPos+1, yPos+1, zPos), glm::vec3(0, 0, 1), sideTex};
-                    Vertex vertex2 = {glm::vec3(xPos+1, yPos+1, nextZPos), glm::vec3(0, 0, 1), sideTex + texRight};
-                    Vertex vertex3 = {glm::vec3(xPos+1, yPos, zPos), glm::vec3(0, 0, 1), sideTex + texDown};
-                    Vertex vertex4 = {glm::vec3(xPos+1, yPos, nextZPos), glm::vec3(0, 0, 1), sideTex + texRight + texDown};
-                    create_face(vertex1, vertex2, vertex3, vertex4);
-                }
-
-                // 下方向 (k-1)
-                if(k-1 >= 0 && is_transparent(chunkBlocks[i][j][k-1]))
-                {
-                    Vertex vertex1 = {glm::vec3(xPos, yPos, zPos), glm::vec3(0, -1, 0), bottomTex};
-                    Vertex vertex2 = {glm::vec3(xPos, yPos, nextZPos), glm::vec3(0, -1, 0), bottomTex + texRight};
-                    Vertex vertex3 = {glm::vec3(xPos+1, yPos, zPos), glm::vec3(0, -1, 0), bottomTex + texDown};
-                    Vertex vertex4 = {glm::vec3(xPos+1, yPos, nextZPos), glm::vec3(0, -1, 0), bottomTex + texRight + texDown};
-                    create_face(vertex1, vertex2, vertex3, vertex4);
-                }
-
-                // 上方向 (k+1)
-                if(k+1 < CHUNK_HEIGHT && is_transparent(chunkBlocks[i][j][k+1]))
-                {
-                    Vertex vertex1 = {glm::vec3(xPos, yPos+1, zPos), glm::vec3(0, 1, 0), topTex};
-                    Vertex vertex2 = {glm::vec3(xPos, yPos+1, nextZPos), glm::vec3(0, 1, 0), topTex + texRight};
-                    Vertex vertex3 = {glm::vec3(xPos+1, yPos+1, zPos), glm::vec3(0, 1, 0), topTex + texDown};
-                    Vertex vertex4 = {glm::vec3(xPos+1, yPos+1, nextZPos), glm::vec3(0, 1, 0), topTex + texRight + texDown};
+                    Vertex vertex1 = {blockPos + faceVertexOffset[face][0], faceNormal[face], tex};
+                    Vertex vertex2 = {blockPos + faceVertexOffset[face][1], faceNormal[face], tex + texRight};
+                    Vertex vertex3 = {blockPos + faceVertexOffset[face][2], faceNormal[face], tex + texDown};
+                    Vertex vertex4 = {blockPos + faceVertexOffset[face][3], faceNormal[face], tex + texRight + texDown};
                     create_face(vertex1, vertex2, vertex3, vertex4);
                 }
             }
@@ -268,7 +218,71 @@ void Chunk::update_data(const Chunk* left, const Chunk* right, const Chunk* forw
     }
     upload_data();
     isModified = false;
-    return ;
+}
+
+// 六个面的顶点偏移（相对于方块原点 (xPos, yPos, zPos)）
+// 方块占据 [x, x+1] × [y, y+1] × [z, z+1]
+const glm::vec3 Chunk::faceVertexOffset[6][4] = {
+    // [0] Back (i-1):    z=1 平面（+Z 面）
+    {{0,1,1}, {1,1,1}, {0,0,1}, {1,0,1}},
+    // [1] Forward (i+1): z=0 平面（-Z 面）
+    {{0,1,0}, {1,1,0}, {0,0,0}, {1,0,0}},
+    // [2] Left (j-1):    x=0 平面（-X 面）
+    {{0,1,1}, {0,1,0}, {0,0,1}, {0,0,0}},
+    // [3] Right (j+1):   x=1 平面（+X 面）
+    {{1,1,1}, {1,1,0}, {1,0,1}, {1,0,0}},
+    // [4] Down (k-1):    y=0 平面（-Y 面）
+    {{0,0,1}, {0,0,0}, {1,0,1}, {1,0,0}},
+    // [5] Up (k+1):      y=1 平面（+Y 面）
+    {{0,1,1}, {0,1,0}, {1,1,1}, {1,1,0}},
+};
+
+// 六个面的几何法线（mesh 空间，朝外）
+const glm::vec3 Chunk::faceNormal[6] = {
+    {0, 0, 1},   // [0] Back:    +Z
+    {0, 0,-1},   // [1] Forward: -Z
+    {-1, 0, 0},  // [2] Left:    -X
+    {1, 0, 0},   // [3] Right:   +X
+    {0,-1, 0},   // [4] Down:    -Y
+    {0, 1, 0},   // [5] Up:      +Y
+};
+
+BLOCK_TYPE Chunk::get_neighbor_block(
+    int i, int j, int k,
+    int face,
+    const Chunk* left, const Chunk* right, const Chunk* forward, const Chunk* back
+) const
+{
+    // 法线 (mesh空间) → 数组偏移: di = -nz (数组i是反向Z), dj = nx, dk = ny
+    int ni = i - (int)faceNormal[face].z;
+    int nj = j + (int)faceNormal[face].x;
+    int nk = k + (int)faceNormal[face].y;
+
+    if(nk >= CHUNK_HEIGHT || nk < 0)
+    {
+        return AIR;
+    }
+    if(ni >= 0 && ni < CHUNK_SIZE && nj >= 0 && nj < CHUNK_SIZE)
+    {
+        return chunkBlocks[ni][nj][nk];
+    }
+    if(nj == CHUNK_SIZE && right)
+    {
+        return right->get_block_type(0, CHUNK_SIZE-1-i, k);
+    }
+    if(nj < 0 && left)
+    {
+        return left->get_block_type(CHUNK_SIZE-1, CHUNK_SIZE-1-i, k);
+    }
+    if(ni == CHUNK_SIZE && forward)
+    {
+        return forward->get_block_type(j, CHUNK_SIZE-1, k);
+    }
+    if(ni < 0 && back)
+    {
+        return back->get_block_type(j, 0, k);
+    }
+    return AIR;
 }
 
 bool Chunk::set_block(int i, int j, int k, BLOCK_TYPE blockType)

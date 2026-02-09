@@ -61,9 +61,16 @@ glm::vec2 get_tex_coord(unsigned int blockType, int face)
     return glm::vec2(0.0f);
 }
 
+// bool transparentType[BLOCK_TYPE_NUM] = {true, false, false, false, true, false, false, true, false, false, false, false};
+
+// bool is_transparent(BLOCK_TYPE blockType)
+// {
+//     return transparentType[blockType];
+// }
+
 bool is_transparent(BLOCK_TYPE blockType)
 {
-    if(blockType == AIR || blockType == GLASS)
+    if(blockType == AIR || blockType == WATER || blockType == GLASS)
     {
         return true;
     }

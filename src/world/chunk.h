@@ -24,9 +24,17 @@ class Chunk
         glm::vec2* topTexCoords;  // 存储方块的顶部纹理坐标
         glm::vec2* bottomTexCoords; // 存储方块的底部纹理坐标
 
+        // 六个面的顶点偏移和法线（相对于方块原点 (xPos, yPos, zPos)）
+        // 顺序：Back(i-1), Forward(i+1), Left(j-1), Right(j+1), Down(k-1), Up(k+1)
+        static const glm::vec3 faceVertexOffset[6][4];
+        static const glm::vec3 faceNormal[6];
+
         void create_face(Vertex& vertex1, Vertex& vertex2, Vertex& vertex3, Vertex& vertex4);
 
         void upload_data();
+
+        BLOCK_TYPE get_neighbor_block(int i, int j, int k, int face,
+            const Chunk* left, const Chunk* right, const Chunk* forward, const Chunk* back) const;
 
     public:
         std::vector<unsigned int> indices;
