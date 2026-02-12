@@ -31,6 +31,15 @@ const glm::vec3 Chunk::faceNormal[6] = {
     {0, 1, 0},   // [5] Up:      +Y
 };
 
+const glm::ivec3 Chunk::arrayOffset[6] = {
+      { 1,  0,  0},  // i+1 (数组Z方向+)
+      {-1,  0,  0},  // i-1 (数组Z方向-)
+      { 0,  1,  0},  // j+1 (数组X方向+)
+      { 0, -1,  0},  // j-1 (数组X方向-)
+      { 0,  0,  1},  // k+1 (数组Y方向+，向上)
+      { 0,  0, -1},  // k-1 (数组Y方向-，向下)
+  };
+
 void Chunk::create_face(Vertex& vertex1, Vertex& vertex2, Vertex& vertex3, Vertex& vertex4)
 {
 
@@ -90,7 +99,8 @@ void Chunk::upload_data()
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, Normal));
     glEnableVertexAttribArray(2);
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, Texcoord));
-    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, LightLevel));
 }
 
 void Chunk::upload_data_transparent()
@@ -119,7 +129,8 @@ void Chunk::upload_data_transparent()
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, Normal));
     glEnableVertexAttribArray(2);
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, Texcoord));
-    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, LightLevel));
 }
 
 Chunk::Chunk(PerlinNoise& perlinNoise, int x, int y)
@@ -130,6 +141,9 @@ Chunk::Chunk(PerlinNoise& perlinNoise, int x, int y)
     double step = 1.0f/CHUNK_SIZE;
     chunkBlocks.resize(CHUNK_SIZE);
     heightMap.resize(CHUNK_SIZE);
+    blockLights.resize(CHUNK_SIZE,
+        std::vector<std::vector<short>>(CHUNK_SIZE,
+            std::vector<short>(CHUNK_HEIGHT, 0)));
     
     // 基于二维柏林噪声生成随机地形
     for(int i = 0; i < CHUNK_SIZE; i++)
@@ -241,11 +255,13 @@ Chunk::Chunk(PerlinNoise& perlinNoise, int x, int y)
         bottomTexCoords[blockType] = get_tex_coord(blockType, 2);
     }
 
+    init_local_light();
+
     // 每个方块的索引即为其在该区块中的minCoord
     isModified = true;
 }
 
-void Chunk::update_data(const Chunk* left, const Chunk* right, const Chunk* forward, const Chunk* back)
+void Chunk::update_data(const Chunk* neighbours[4])
 {
     vector<Vertex>().swap(vertices);
     vector<unsigned int>().swap(indices);
@@ -278,7 +294,7 @@ void Chunk::update_data(const Chunk* left, const Chunk* right, const Chunk* forw
                 // 检查六个方向的邻居，只渲染可见面
                 for(int face = 0; face < 6; ++face)
                 {
-                    BLOCK_TYPE neighborBlock = get_neighbor_block(i, j, k, face, left, right, forward, back);
+                    BLOCK_TYPE neighborBlock = get_neighbor_block(i, j, k, face, neighbours);
                     if(!is_transparent(neighborBlock))
                     {
                         continue;              // 邻居不透明，不生成面
@@ -291,10 +307,13 @@ void Chunk::update_data(const Chunk* left, const Chunk* right, const Chunk* forw
                     // 选择纹理：face 4=底面, face 5=顶面, 其余=侧面
                     glm::vec2 tex = (face == 5) ? topTex : (face == 4) ? bottomTex : sideTex;
 
-                    Vertex vertex1 = {blockPos + faceVertexOffset[face][0], faceNormal[face], tex};
-                    Vertex vertex2 = {blockPos + faceVertexOffset[face][1], faceNormal[face], tex + texRight};
-                    Vertex vertex3 = {blockPos + faceVertexOffset[face][2], faceNormal[face], tex + texDown};
-                    Vertex vertex4 = {blockPos + faceVertexOffset[face][3], faceNormal[face], tex + texRight + texDown};
+                    // 该面的光照等级 = 相邻透明方块的光照值
+                    float light = get_neighbor_light(i, j, k, face, neighbours);
+
+                    Vertex vertex1 = {blockPos + faceVertexOffset[face][0], faceNormal[face], tex, light};
+                    Vertex vertex2 = {blockPos + faceVertexOffset[face][1], faceNormal[face], tex + texRight, light};
+                    Vertex vertex3 = {blockPos + faceVertexOffset[face][2], faceNormal[face], tex + texDown, light};
+                    Vertex vertex4 = {blockPos + faceVertexOffset[face][3], faceNormal[face], tex + texRight + texDown, light};
                     if(is_transparent(blockType))
                     {
                         create_face_transparent(vertex1, vertex2, vertex3, vertex4);
@@ -315,9 +334,10 @@ void Chunk::update_data(const Chunk* left, const Chunk* right, const Chunk* forw
 BLOCK_TYPE Chunk::get_neighbor_block(
     int i, int j, int k,
     int face,
-    const Chunk* left, const Chunk* right, const Chunk* forward, const Chunk* back
+    const Chunk* neighbours[4]
 ) const
 {
+    // neighbours: [0]=left(-X), [1]=right(+X), [2]=forward(-Z), [3]=back(+Z)
     // 法线 (mesh空间) → 数组偏移: di = -nz (数组i是反向Z), dj = nx, dk = ny
     int ni = i - (int)faceNormal[face].z;
     int nj = j + (int)faceNormal[face].x;
@@ -331,23 +351,54 @@ BLOCK_TYPE Chunk::get_neighbor_block(
     {
         return chunkBlocks[ni][nj][nk];
     }
-    if(nj == CHUNK_SIZE && right)
+    if(nj == CHUNK_SIZE && neighbours[1])
     {
-        return right->get_block_type(0, CHUNK_SIZE-1-i, k);
+        return neighbours[1]->get_block_type(0, CHUNK_SIZE-1-i, k);
     }
-    if(nj < 0 && left)
+    if(nj < 0 && neighbours[0])
     {
-        return left->get_block_type(CHUNK_SIZE-1, CHUNK_SIZE-1-i, k);
+        return neighbours[0]->get_block_type(CHUNK_SIZE-1, CHUNK_SIZE-1-i, k);
     }
-    if(ni == CHUNK_SIZE && forward)
+    if(ni == CHUNK_SIZE && neighbours[2])
     {
-        return forward->get_block_type(j, CHUNK_SIZE-1, k);
+        return neighbours[2]->get_block_type(j, CHUNK_SIZE-1, k);
     }
-    if(ni < 0 && back)
+    if(ni < 0 && neighbours[3])
     {
-        return back->get_block_type(j, 0, k);
+        return neighbours[3]->get_block_type(j, 0, k);
     }
     return AIR;
+}
+
+float Chunk::get_neighbor_light(
+    int i, int j, int k,
+    int face,
+    const Chunk* neighbours[4]
+) const
+{
+    // neighbours: [0]=left(-X), [1]=right(+X), [2]=forward(-Z), [3]=back(+Z)
+    int ni = i - (int)faceNormal[face].z;
+    int nj = j + (int)faceNormal[face].x;
+    int nk = k + (int)faceNormal[face].y;
+
+    if(nk >= CHUNK_HEIGHT) return 15.0f;  // 世界顶部以上，天空满亮度
+    if(nk < 0) return 0.0f;               // 世界底部以下，全黑
+
+    if(ni >= 0 && ni < CHUNK_SIZE && nj >= 0 && nj < CHUNK_SIZE)
+    {
+        return (float)blockLights[ni][nj][nk];
+    }
+    // 跨区块访问：get_block_light 使用数组索引（无翻转）
+    if(nj == CHUNK_SIZE && neighbours[1])
+        return (float)neighbours[1]->get_block_light({i, 0, nk});
+    if(nj < 0 && neighbours[0])
+        return (float)neighbours[0]->get_block_light({i, CHUNK_SIZE-1, nk});
+    if(ni == CHUNK_SIZE && neighbours[2])
+        return (float)neighbours[2]->get_block_light({0, j, nk});
+    if(ni < 0 && neighbours[3])
+        return (float)neighbours[3]->get_block_light({CHUNK_SIZE-1, j, nk});
+
+    return 15.0f;  // 邻居区块未加载，默认满亮度
 }
 
 void Chunk::sort_transparent_faces(const glm::vec3& localCameraPos)
@@ -442,6 +493,7 @@ double Chunk::generate_height(PerlinNoise& perlinNoise, double worldX, double wo
 Chunk::Chunk(Chunk&& other) noexcept
       : chunkBlocks(std::move(other.chunkBlocks)),
         heightMap(std::move(other.heightMap)),
+        blockLights(std::move(other.blockLights)),
         vertices(std::move(other.vertices)),
         verticesT(std::move(other.verticesT)),
         transparentFaceCenters(std::move(other.transparentFaceCenters)),
@@ -479,6 +531,7 @@ Chunk& Chunk::operator=(Chunk&& other) noexcept
         // 窃取源对象资源
         chunkBlocks = std::move(other.chunkBlocks);
         heightMap = std::move(other.heightMap);
+        blockLights = std::move(other.blockLights);
         vertices = std::move(other.vertices);
         verticesT = std::move(other.verticesT);
         transparentFaceCenters = std::move(other.transparentFaceCenters);
@@ -503,3 +556,127 @@ Chunk& Chunk::operator=(Chunk&& other) noexcept
     }
     return *this;
 }
+
+bool Chunk::is_valid_index(const glm::ivec3& index)
+{
+    if(index.x < 0 || index.x >= CHUNK_SIZE || index.y < 0 || index.y >= CHUNK_SIZE || index.z < 0 || index.z >= CHUNK_HEIGHT)
+    {
+        return false;
+    }
+    return true;
+}
+
+short Chunk::get_block_light(const glm::ivec3& index) const
+{
+    if(!is_valid_index(index))
+    {
+        return 0;
+    }
+    return blockLights[index.x][index.y][index.z];
+}
+
+void Chunk::init_local_light()
+{
+    std::queue<glm::ivec3 > lightBFS;
+    for(int i = 0; i < CHUNK_SIZE; ++i)
+    {
+        for(int j = 0; j < CHUNK_SIZE; ++j)
+        {
+            for(int k = CHUNK_HEIGHT-1; k >= 0; k--)
+            {
+                if(chunkBlocks[i][j][k] != AIR)
+                {
+                    break;
+                }
+                blockLights[i][j][k] = 15;
+                lightBFS.push(glm::ivec3(i, j, k));
+            }
+        }
+    }
+    update_block_light(lightBFS);
+    return ;
+}
+
+void Chunk::update_block_light(std::queue<glm::ivec3 >& lightBFS)
+{
+    while(!lightBFS.empty())
+    {
+        glm::ivec3 local = lightBFS.front();
+        lightBFS.pop();
+        for(int i = 0; i < 6; ++i)
+        {
+            glm::ivec3 temp = local + arrayOffset[i];
+            if(!is_valid_index(temp))
+            {
+                continue;
+            }
+            else if(blockLights[temp.x][temp.y][temp.z] >= blockLights[local.x][local.y][local.z])
+            {
+                continue;
+            }
+            int dec = get_opacity(chunkBlocks[temp.x][temp.y][temp.z]);
+            if(blockLights[local.x][local.y][local.z] - dec <= 0)
+            {
+                blockLights[temp.x][temp.y][temp.z] = 0;
+                continue;
+            }
+            blockLights[temp.x][temp.y][temp.z] = blockLights[local.x][local.y][local.z] - dec;
+            lightBFS.push(temp);
+        }
+    }
+}
+
+void Chunk::init_chunk_light(const Chunk* neighbours[4])
+{
+    // neighbours: [0]=left(-X), [1]=right(+X), [2]=forward(-Z), [3]=back(+Z)
+    // 数组维度: i→Z反向, j→X, k→Y
+    // j=0 侧邻居=left([0]), j=max 侧邻居=right([1])
+    // i=0 侧邻居=back([3]), i=max 侧邻居=forward([2])
+    std::queue<glm::ivec3> lightBFS;
+
+    // j 方向边界: left / right
+    for(int i = 0; i < CHUNK_SIZE; ++i)
+    {
+        for(int k = 0; k < CHUNK_HEIGHT; ++k)
+        {
+            // j=0 侧 ← left
+            int newLight = neighbours[0]->get_block_light({i, CHUNK_SIZE-1, k}) - get_opacity(chunkBlocks[i][0][k]);
+            if(newLight > blockLights[i][0][k])
+            {
+                blockLights[i][0][k] = newLight;
+                lightBFS.push({i, 0, k});
+            }
+            // j=max 侧 ← right
+            newLight = neighbours[1]->get_block_light({i, 0, k}) - get_opacity(chunkBlocks[i][CHUNK_SIZE-1][k]);
+            if(newLight > blockLights[i][CHUNK_SIZE-1][k])
+            {
+                blockLights[i][CHUNK_SIZE-1][k] = newLight;
+                lightBFS.push({i, CHUNK_SIZE-1, k});
+            }
+        }
+    }
+
+    // i 方向边界: forward / back
+    for(int j = 0; j < CHUNK_SIZE; ++j)
+    {
+        for(int k = 0; k < CHUNK_HEIGHT; ++k)
+        {
+            // i=max 侧 ← forward
+            int newLight = neighbours[2]->get_block_light({0, j, k}) - get_opacity(chunkBlocks[CHUNK_SIZE-1][j][k]);
+            if(newLight > blockLights[CHUNK_SIZE-1][j][k])
+            {
+                blockLights[CHUNK_SIZE-1][j][k] = newLight;
+                lightBFS.push({CHUNK_SIZE-1, j, k});
+            }
+            // i=0 侧 ← back
+            newLight = neighbours[3]->get_block_light({CHUNK_SIZE-1, j, k}) - get_opacity(chunkBlocks[0][j][k]);
+            if(newLight > blockLights[0][j][k])
+            {
+                blockLights[0][j][k] = newLight;
+                lightBFS.push({0, j, k});
+            }
+        }
+    }
+    update_block_light(lightBFS);
+}
+

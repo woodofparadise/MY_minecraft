@@ -74,9 +74,9 @@ void Terrain::draw_terrain(Shader& blockShader, const glm::mat4& vpMatrix, const
     unsigned int totalIndices = 0;
 
     // Pass 1: 不透明方块（深度写入ON，混合OFF）
-    for(int i = -1; i <= 1; i++)
+    for(int i = -2; i <= 2; i++)
     {
-        for(int j = -1; j <= 1; j++)
+        for(int j = -2; j <= 2; j++)
         {
             pair<int, int> index(chunk_index_x+i, chunk_index_z+j);
             if(!is_chunk_visible(vpMatrix, index.first, index.second))
@@ -99,9 +99,9 @@ void Terrain::draw_terrain(Shader& blockShader, const glm::mat4& vpMatrix, const
     };
     vector<TransparentChunk> transparentChunks;
 
-    for(int i = -1; i <= 1; i++)
+    for(int i = -2; i <= 2; i++)
     {
-        for(int j = -1; j <= 1; j++)
+        for(int j = -2; j <= 2; j++)
         {
             pair<int, int> index(chunk_index_x+i, chunk_index_z+j);
             if(!is_chunk_visible(vpMatrix, index.first, index.second))
@@ -152,9 +152,9 @@ void Terrain::update_terrain(const glm::vec3& position, const glm::mat4* vpMatri
 {
     chunk_index_x = floor((float)(position.x+CHUNK_SIZE/2) / (float)CHUNK_SIZE);
     chunk_index_z = floor((float)(position.z+CHUNK_SIZE/2) / (float)CHUNK_SIZE);
-    for(int i = -1; i <= 1; i++)
+    for(int i = -2; i <= 2; i++)
     {
-        for(int j = -1; j <= 1; j++)
+        for(int j = -2; j <= 2; j++)
         {
             pair<int, int> index(chunk_index_x+i, chunk_index_z+j);
             if(terrainMap.find(index) == terrainMap.end())
@@ -183,11 +183,20 @@ void Terrain::update_terrain(const glm::vec3& position, const glm::mat4* vpMatri
                         terrainMap[adjIndex] = make_unique<Chunk>(perlinNoise, adjIndex.first, adjIndex.second);
                     }
                 }
-                pair<int, int> left(index.first-1, index.second); // 左
-                pair<int, int> right(index.first+1, index.second); // 右
-                pair<int, int> forward(index.first, index.second-1); // 前
-                pair<int, int> back(index.first, index.second+1); // 后
-                terrainMap[index]->update_data(terrainMap[left].get(), terrainMap[right].get(), terrainMap[forward].get(), terrainMap[back].get());
+                pair<int, int> left(index.first-1, index.second); // 左 (-X)
+                pair<int, int> right(index.first+1, index.second); // 右 (+X)
+                pair<int, int> forward(index.first, index.second-1); // 前 (-Z)
+                pair<int, int> back(index.first, index.second+1); // 后 (+Z)
+
+                // neighbours: [0]=left(-X), [1]=right(+X), [2]=forward(-Z), [3]=back(+Z)
+                const Chunk* neighbours[4] = {
+                    terrainMap[left].get(),
+                    terrainMap[right].get(),
+                    terrainMap[forward].get(),
+                    terrainMap[back].get()
+                };
+                terrainMap[index]->init_chunk_light(neighbours);
+                terrainMap[index]->update_data(neighbours);
             }
         }
     }

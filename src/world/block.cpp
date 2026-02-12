@@ -76,3 +76,15 @@ bool is_transparent(BLOCK_TYPE blockType)
     }
     return false;
 }
+
+int get_opacity(BLOCK_TYPE type)
+{
+    switch(type)
+    {
+        case AIR:    return 1;
+        case WATER:  return 3;
+        case GLASS:  return 1;
+        default:     return 16;  // 实心方块，光无法穿透
+    }
+    return 16;
+}

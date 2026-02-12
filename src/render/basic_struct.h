@@ -10,6 +10,7 @@ struct Vertex
     glm::vec3 Position;
     glm::vec3 Normal;
     glm::vec2 Texcoord;
+    float     LightLevel = 15.0f;  // 光照等级 0~15，默认满亮度
 };
 
 struct Triangle

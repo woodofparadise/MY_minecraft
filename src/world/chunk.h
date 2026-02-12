@@ -8,9 +8,39 @@
 #include "perlin_noise.h"
 #include "../render/basic_struct.h"
 #include <vector>
+#include <queue>
 
 #define CHUNK_SIZE 32
 #define CHUNK_HEIGHT 128
+
+// ============ 坐标系映射说明 ============
+//
+// chunkBlocks[i][j][k] 的三个维度:
+//   i ∈ [0, CHUNK_SIZE)    — 对应 Z 轴（反向）
+//   j ∈ [0, CHUNK_SIZE)    — 对应 X 轴
+//   k ∈ [0, CHUNK_HEIGHT)  — 对应 Y 轴（高度）
+//
+// 数组索引 → mesh 局部坐标:
+//   mesh.x = j
+//   mesh.y = k
+//   mesh.z = CHUNK_SIZE - 1 - i
+//
+// mesh 局部坐标 → 数组索引:
+//   i = CHUNK_SIZE - 1 - mesh.z
+//   j = mesh.x
+//   k = mesh.y
+//
+// mesh 局部坐标 → 世界坐标 (chunk_index_x, chunk_index_z 为区块索引):
+//   world.x = mesh.x + chunk_index_x * CHUNK_SIZE - CHUNK_SIZE / 2
+//   world.y = mesh.y
+//   world.z = mesh.z + chunk_index_z * CHUNK_SIZE - CHUNK_SIZE / 2
+//
+// 世界坐标 → 数组索引:
+//   i = CHUNK_SIZE - 1 - (world.z - chunk_index_z * CHUNK_SIZE + CHUNK_SIZE / 2)
+//   j = world.x - chunk_index_x * CHUNK_SIZE + CHUNK_SIZE / 2
+//   k = world.y
+//
+// ========================================
 
 class Chunk
 {
@@ -20,6 +50,7 @@ class Chunk
         std::vector<Vertex> vertices;
         std::vector<Vertex> verticesT;              // 透明方块顶点数据
         std::vector<glm::vec3> transparentFaceCenters; // 每个透明面片的中心（chunk局部空间）
+        std::vector<std::vector<std::vector<short> > > blockLights;
 
         // 预计算纹理坐标以减少函数调用
         glm::vec2* sideTexCoords; // 存储方块的侧面纹理坐标
@@ -38,7 +69,17 @@ class Chunk
         void upload_data_transparent();
 
         BLOCK_TYPE get_neighbor_block(int i, int j, int k, int face,
-            const Chunk* left, const Chunk* right, const Chunk* forward, const Chunk* back) const;
+            const Chunk* neighbours[4]) const;
+
+        // 获取相邻方块的光照等级（用于 mesh 生成时写入顶点属性）
+        float get_neighbor_light(int i, int j, int k, int face,
+            const Chunk* neighbours[4]) const;
+
+        // 光照 BFS 的通用传播函数（阶段一和阶段二共用）
+        void update_block_light(std::queue<glm::ivec3>& lightBFS);
+
+        // 数组空间的六邻居偏移 [i][j][k] 对应 [Z反向][X][Y高度]
+        static const glm::ivec3 arrayOffset[6];
 
     public:
         std::vector<unsigned int> indices;
@@ -61,13 +102,20 @@ class Chunk
             return chunkBlocks[CHUNK_SIZE-1-j][i][k];
         }
 
-        void update_data(const Chunk* left, const Chunk* right, const Chunk* forward, const Chunk* back);
+        // neighbours[4] 顺序: {left(-X), right(+X), forward(-Z), back(+Z)}
+        void update_data(const Chunk* neighbours[4]);
 
         void sort_transparent_faces(const glm::vec3& localCameraPos);
 
         bool set_block(int i, int j, int k, BLOCK_TYPE blockType);
 
         double generate_height(PerlinNoise& perlinNoise, double x, double z);
+
+        // 光照系统
+        static bool is_valid_index(const glm::ivec3& index);
+        short get_block_light(const glm::ivec3& index) const;
+        void init_local_light();                          // 阶段一：区块内部光照
+        void init_chunk_light(const Chunk* neighbours[4]); // 阶段二：跨区块边界传播
 
         // 禁用拷贝
         Chunk(const Chunk&) = delete;

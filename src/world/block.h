@@ -32,4 +32,6 @@ glm::vec2 get_tex_coord(unsigned int blockType, int face);
 
 bool is_transparent(BLOCK_TYPE blockType);
 
+int get_opacity(BLOCK_TYPE type);
+
 #endif
