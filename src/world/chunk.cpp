@@ -434,14 +434,20 @@ void Chunk::sort_transparent_faces(const glm::vec3& localCameraPos)
     glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, indicesT.size() * sizeof(unsigned int), indicesT.data());
 }
 
-bool Chunk::set_block(int i, int j, int k, BLOCK_TYPE blockType)
+bool Chunk::set_block(int x, int y, int z, BLOCK_TYPE blockType, Chunk* neighbours[4])
 {
-    if(k < 0 || k >= CHUNK_HEIGHT)
+    if(z < 0 || z >= CHUNK_HEIGHT)
     {
         return false;
     }
     isModified = true;
-    chunkBlocks[CHUNK_SIZE-1-j][i][k] = blockType;
+    BLOCK_TYPE oldType = chunkBlocks[CHUNK_SIZE-1-y][x][z];
+    chunkBlocks[CHUNK_SIZE-1-y][x][z] = blockType;
+    // 数组索引: i = CHUNK_SIZE-1-y, j = x, k = z
+    if(blockType == AIR && oldType != AIR)
+    {
+        update_light_on_destroy({CHUNK_SIZE-1-y, x, z}, neighbours);
+    }
     return true;
 }
 
@@ -505,7 +511,8 @@ Chunk::Chunk(Chunk&& other) noexcept
         transparentVAO(other.transparentVAO),
         transparentVBO(other.transparentVBO),
         transparentEBO(other.transparentEBO),
-        isModified(other.isModified)
+        isModified(other.isModified),
+        isLightDirty(other.isLightDirty)
   {
       other.VAO = 0;
       other.VBO = 0;
@@ -514,6 +521,7 @@ Chunk::Chunk(Chunk&& other) noexcept
       other.transparentVBO = 0;
       other.transparentEBO = 0;
       other.isModified = false;
+      other.isLightDirty = false;
   }
 
 Chunk& Chunk::operator=(Chunk&& other) noexcept
@@ -544,6 +552,7 @@ Chunk& Chunk::operator=(Chunk&& other) noexcept
         transparentVBO = other.transparentVBO;
         transparentEBO = other.transparentEBO;
         isModified = other.isModified;
+        isLightDirty = other.isLightDirty;
 
         // 源对象置空
         other.VAO = 0;
@@ -553,6 +562,7 @@ Chunk& Chunk::operator=(Chunk&& other) noexcept
         other.transparentVBO = 0;
         other.transparentEBO = 0;
         other.isModified = false;
+        other.isLightDirty = false;
     }
     return *this;
 }
@@ -626,7 +636,7 @@ void Chunk::update_block_light(std::queue<glm::ivec3 >& lightBFS)
     }
 }
 
-void Chunk::init_chunk_light(const Chunk* neighbours[4])
+void Chunk::update_chunk_light(const Chunk* neighbours[4])
 {
     // neighbours: [0]=left(-X), [1]=right(+X), [2]=forward(-Z), [3]=back(+Z)
     // 数组维度: i→Z反向, j→X, k→Y
@@ -680,3 +690,133 @@ void Chunk::init_chunk_light(const Chunk* neighbours[4])
     update_block_light(lightBFS);
 }
 
+void Chunk::update_light_on_destroy(const glm::ivec3& index, Chunk* neighbours[4])
+{
+    // Step 1: 天空光柱恢复检查
+    bool isSunLight = true;
+    std::queue<glm::ivec3> lightBFS;
+    for(int k = index.z; k < CHUNK_HEIGHT; ++k)
+    {
+        if(chunkBlocks[index.x][index.y][k] != AIR)
+        {
+            isSunLight = false;
+            break;
+        }
+    }
+    if(isSunLight)
+    {
+        // 该位置暴露在天空下，向下设置满亮度直到遇到非透明方块
+        for(int k = index.z; k >= 0; --k)
+        {
+            if(chunkBlocks[index.x][index.y][k] != AIR)
+            {
+                break;
+            }
+            blockLights[index.x][index.y][k] = 15;
+            lightBFS.push({index.x, index.y, k});
+        }
+        update_block_light(lightBFS);
+    }
+    else
+    {
+        // Step 2: 非天空柱——从6个邻居中采集最大光照
+        blockLights[index.x][index.y][index.z] = 0;
+        short dec = (short)get_opacity(chunkBlocks[index.x][index.y][index.z]);
+        for(int i = 0; i < 6; i++)
+        {
+            glm::ivec3 temp = index + arrayOffset[i];
+            if(is_valid_index(temp))
+            {
+                short candidate = blockLights[temp.x][temp.y][temp.z] - dec;
+                if(candidate > blockLights[index.x][index.y][index.z])
+                    blockLights[index.x][index.y][index.z] = candidate;
+            }
+            else
+            {
+                // 跨区块邻居采光
+                short nbLight = 0;
+                if(temp.z >= CHUNK_HEIGHT)
+                    nbLight = 15;
+                else if(temp.z < 0)
+                    nbLight = 0;
+                else if(temp.y >= CHUNK_SIZE && neighbours[1])
+                    nbLight = neighbours[1]->get_block_light({temp.x, 0, temp.z});
+                else if(temp.y < 0 && neighbours[0])
+                    nbLight = neighbours[0]->get_block_light({temp.x, CHUNK_SIZE-1, temp.z});
+                else if(temp.x >= CHUNK_SIZE && neighbours[2])
+                    nbLight = neighbours[2]->get_block_light({0, temp.y, temp.z});
+                else if(temp.x < 0 && neighbours[3])
+                    nbLight = neighbours[3]->get_block_light({CHUNK_SIZE-1, temp.y, temp.z});
+                short candidate = nbLight - dec;
+                if(candidate > blockLights[index.x][index.y][index.z])
+                    blockLights[index.x][index.y][index.z] = candidate;
+            }
+        }
+
+        // Step 3: 正向BFS传播
+        lightBFS.push(index);
+        update_block_light(lightBFS);
+    }
+
+    // Step 4: 根据BFS最大传播距离(15)标记可能受影响的邻居区块
+    // BFS从 index 出发最远传播15格，若能到达某个边界则标记该邻居
+    // neighbours: [0]=left(-X,j=0), [1]=right(+X,j=max), [2]=forward(-Z,i=max), [3]=back(+Z,i=0)
+    if(index.y < 15 && neighbours[0])              neighbours[0]->isLightDirty = true;
+    if(index.y >= CHUNK_SIZE - 15 && neighbours[1]) neighbours[1]->isLightDirty = true;
+    if(index.x >= CHUNK_SIZE - 15 && neighbours[2]) neighbours[2]->isLightDirty = true;
+    if(index.x < 15 && neighbours[3])              neighbours[3]->isLightDirty = true;
+}
+
+int Chunk::normal_to_face(const glm::vec3& normal)
+{
+    if(normal.z > 0.5f)  return 0;  // Back:    +Z
+    if(normal.z < -0.5f) return 1;  // Forward: -Z
+    if(normal.x < -0.5f) return 2;  // Left:    -X
+    if(normal.x > 0.5f)  return 3;  // Right:   +X
+    if(normal.y < -0.5f) return 4;  // Down:    -Y
+    return 5;                        // Up:      +Y
+}
+
+void Chunk::refresh_vertex_lights(const Chunk* neighbours[4])
+{
+    // 每4个顶点组成一个面片，共享同一方块和面方向
+    for(size_t v = 0; v + 3 < vertices.size(); v += 4)
+    {
+        int face = normal_to_face(vertices[v].Normal);
+        // 从顶点位置反推方块的 mesh 局部坐标
+        glm::vec3 blockPos = vertices[v].Position - faceVertexOffset[face][0];
+        int i = CHUNK_SIZE - 1 - (int)blockPos.z;
+        int j = (int)blockPos.x;
+        int k = (int)blockPos.y;
+        float light = get_neighbor_light(i, j, k, face, neighbours);
+        vertices[v].LightLevel = light;
+        vertices[v+1].LightLevel = light;
+        vertices[v+2].LightLevel = light;
+        vertices[v+3].LightLevel = light;
+    }
+    for(size_t v = 0; v + 3 < verticesT.size(); v += 4)
+    {
+        int face = normal_to_face(verticesT[v].Normal);
+        glm::vec3 blockPos = verticesT[v].Position - faceVertexOffset[face][0];
+        int i = CHUNK_SIZE - 1 - (int)blockPos.z;
+        int j = (int)blockPos.x;
+        int k = (int)blockPos.y;
+        float light = get_neighbor_light(i, j, k, face, neighbours);
+        verticesT[v].LightLevel = light;
+        verticesT[v+1].LightLevel = light;
+        verticesT[v+2].LightLevel = light;
+        verticesT[v+3].LightLevel = light;
+    }
+
+    // 仅重传 VBO 数据（几何不变，VAO/EBO 不动）
+    if(!vertices.empty())
+    {
+        glBindBuffer(GL_ARRAY_BUFFER, VBO);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, vertices.size() * sizeof(Vertex), vertices.data());
+    }
+    if(!verticesT.empty())
+    {
+        glBindBuffer(GL_ARRAY_BUFFER, transparentVBO);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, verticesT.size() * sizeof(Vertex), verticesT.data());
+    }
+}

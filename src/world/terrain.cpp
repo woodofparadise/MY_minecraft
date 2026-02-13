@@ -195,8 +195,39 @@ void Terrain::update_terrain(const glm::vec3& position, const glm::mat4* vpMatri
                     terrainMap[forward].get(),
                     terrainMap[back].get()
                 };
-                terrainMap[index]->init_chunk_light(neighbours);
+                terrainMap[index]->update_chunk_light(neighbours);
                 terrainMap[index]->update_data(neighbours);
+                terrainMap[index]->isLightDirty = false;
+            }
+            else if(terrainMap[index]->isLightDirty)
+            {
+                // 仅光照变化：跳过几何重建，只刷新顶点光照并重传 VBO
+                for(int x = -1; x <= 1; x += 2)
+                {
+                    pair<int, int> adjIndex(index.first+x, index.second);
+                    if(terrainMap.find(adjIndex) == terrainMap.end())
+                        terrainMap[adjIndex] = make_unique<Chunk>(perlinNoise, adjIndex.first, adjIndex.second);
+                }
+                for(int y = -1; y <= 1; y += 2)
+                {
+                    pair<int, int> adjIndex(index.first, index.second+y);
+                    if(terrainMap.find(adjIndex) == terrainMap.end())
+                        terrainMap[adjIndex] = make_unique<Chunk>(perlinNoise, adjIndex.first, adjIndex.second);
+                }
+                pair<int, int> left(index.first-1, index.second);
+                pair<int, int> right(index.first+1, index.second);
+                pair<int, int> forward(index.first, index.second-1);
+                pair<int, int> back(index.first, index.second+1);
+
+                const Chunk* neighbours[4] = {
+                    terrainMap[left].get(),
+                    terrainMap[right].get(),
+                    terrainMap[forward].get(),
+                    terrainMap[back].get()
+                };
+                terrainMap[index]->update_chunk_light(neighbours);
+                terrainMap[index]->refresh_vertex_lights(neighbours);
+                terrainMap[index]->isLightDirty = false;
             }
         }
     }
@@ -208,10 +239,29 @@ bool Terrain::destroy_block(glm::ivec3& selectedBlock)
     chunk_index_z = floor((float)(selectedBlock.z+CHUNK_SIZE/2) / (float)CHUNK_SIZE);
     pair<int, int> index(chunk_index_x, chunk_index_z);
     if(terrainMap.find(index) == terrainMap.end())
-    {
         terrainMap[index] = make_unique<Chunk>(perlinNoise, index.first, index.second);
+
+    // 确保四个邻居已加载，构建 neighbours 数组
+    pair<int, int> left(index.first-1, index.second);
+    pair<int, int> right(index.first+1, index.second);
+    pair<int, int> forward(index.first, index.second-1);
+    pair<int, int> back(index.first, index.second+1);
+    pair<int, int> adj[4] = {left, right, forward, back};
+    for(auto& a : adj)
+    {
+        if(terrainMap.find(a) == terrainMap.end())
+            terrainMap[a] = make_unique<Chunk>(perlinNoise, a.first, a.second);
     }
-    return terrainMap[index]->set_block(selectedBlock.x-chunk_index_x*CHUNK_SIZE+CHUNK_SIZE/2, selectedBlock.z-chunk_index_z*CHUNK_SIZE+CHUNK_SIZE/2, selectedBlock.y, AIR);
+    Chunk* neighbours[4] = {
+        terrainMap[left].get(), terrainMap[right].get(),
+        terrainMap[forward].get(), terrainMap[back].get()
+    };
+
+    // set_block 内部的 update_light_on_destroy 会精确标记受影响的邻居 isLightDirty
+    return terrainMap[index]->set_block(
+        selectedBlock.x - chunk_index_x*CHUNK_SIZE + CHUNK_SIZE/2,
+        selectedBlock.z - chunk_index_z*CHUNK_SIZE + CHUNK_SIZE/2,
+        selectedBlock.y, AIR, neighbours);
 }
 
 bool Terrain::create_block(glm::ivec3& selectedBlock, BLOCK_TYPE blockType)
@@ -220,8 +270,25 @@ bool Terrain::create_block(glm::ivec3& selectedBlock, BLOCK_TYPE blockType)
     chunk_index_z = floor((float)(selectedBlock.z+CHUNK_SIZE/2) / (float)CHUNK_SIZE);
     pair<int, int> index(chunk_index_x, chunk_index_z);
     if(terrainMap.find(index) == terrainMap.end())
-    {
         terrainMap[index] = make_unique<Chunk>(perlinNoise, index.first, index.second);
+
+    pair<int, int> left(index.first-1, index.second);
+    pair<int, int> right(index.first+1, index.second);
+    pair<int, int> forward(index.first, index.second-1);
+    pair<int, int> back(index.first, index.second+1);
+    pair<int, int> adj[4] = {left, right, forward, back};
+    for(auto& a : adj)
+    {
+        if(terrainMap.find(a) == terrainMap.end())
+            terrainMap[a] = make_unique<Chunk>(perlinNoise, a.first, a.second);
     }
-    return terrainMap[index]->set_block(selectedBlock.x-chunk_index_x*CHUNK_SIZE+CHUNK_SIZE/2, selectedBlock.z-chunk_index_z*CHUNK_SIZE+CHUNK_SIZE/2, selectedBlock.y, blockType);
+    Chunk* neighbours[4] = {
+        terrainMap[left].get(), terrainMap[right].get(),
+        terrainMap[forward].get(), terrainMap[back].get()
+    };
+
+    return terrainMap[index]->set_block(
+        selectedBlock.x - chunk_index_x*CHUNK_SIZE + CHUNK_SIZE/2,
+        selectedBlock.z - chunk_index_z*CHUNK_SIZE + CHUNK_SIZE/2,
+        selectedBlock.y, blockType, neighbours);
 }

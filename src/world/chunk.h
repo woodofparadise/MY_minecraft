@@ -81,12 +81,19 @@ class Chunk
         // 数组空间的六邻居偏移 [i][j][k] 对应 [Z反向][X][Y高度]
         static const glm::ivec3 arrayOffset[6];
 
+        // 破坏方块后的增量光照更新（正向BFS，可能标记邻居 isLightDirty）
+        void update_light_on_destroy(const glm::ivec3& index, Chunk* neighbours[4]);
+
+        // 法线向量 → 面索引 (0~5)
+        static int normal_to_face(const glm::vec3& normal);
+
     public:
         std::vector<unsigned int> indices;
         std::vector<unsigned int> indicesT;                 // 透明方块索引数据
         unsigned int EBO = 0, VAO = 0, VBO = 0;
         unsigned int transparentEBO = 0, transparentVAO = 0, transparentVBO = 0;
-        bool isModified = false;                            // 标志区块内的数据是否发生变化
+        bool isModified = false;                            // 标志区块内的数据是否发生变化（需要完整重建 mesh）
+        bool isLightDirty = false;                          // 标志区块仅光照变化（只需刷新顶点光照）
 
         Chunk(): VAO(0), VBO(0), EBO(0), transparentVAO(0), transparentVBO(0), transparentEBO(0), isModified(false){};
 
@@ -107,7 +114,7 @@ class Chunk
 
         void sort_transparent_faces(const glm::vec3& localCameraPos);
 
-        bool set_block(int i, int j, int k, BLOCK_TYPE blockType);
+        bool set_block(int x, int y, int z, BLOCK_TYPE blockType, Chunk* neighbours[4]);
 
         double generate_height(PerlinNoise& perlinNoise, double x, double z);
 
@@ -115,7 +122,10 @@ class Chunk
         static bool is_valid_index(const glm::ivec3& index);
         short get_block_light(const glm::ivec3& index) const;
         void init_local_light();                          // 阶段一：区块内部光照
-        void init_chunk_light(const Chunk* neighbours[4]); // 阶段二：跨区块边界传播
+        void update_chunk_light(const Chunk* neighbours[4]); // 阶段二：跨区块边界传播
+
+        // 仅刷新顶点的 LightLevel 并重传 VBO（不重建几何）
+        void refresh_vertex_lights(const Chunk* neighbours[4]);
 
         // 禁用拷贝
         Chunk(const Chunk&) = delete;
