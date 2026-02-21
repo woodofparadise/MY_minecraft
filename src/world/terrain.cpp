@@ -197,11 +197,11 @@ void Terrain::update_terrain(const glm::vec3& position, const glm::mat4* vpMatri
                 };
                 terrainMap[index]->update_chunk_light(neighbours);
                 terrainMap[index]->update_data(neighbours);
-                terrainMap[index]->isLightDirty = false;
+                terrainMap[index]->lightUpdate = NONE;
             }
-            else if(terrainMap[index]->isLightDirty)
+            else if(terrainMap[index]->lightUpdate > NONE)
             {
-                // 仅光照变化：跳过几何重建，只刷新顶点光照并重传 VBO
+                // 光照变化：跳过几何重建，按等级执行级联更新
                 for(int x = -1; x <= 1; x += 2)
                 {
                     pair<int, int> adjIndex(index.first+x, index.second);
@@ -225,9 +225,16 @@ void Terrain::update_terrain(const glm::vec3& position, const glm::mat4* vpMatri
                     terrainMap[forward].get(),
                     terrainMap[back].get()
                 };
-                terrainMap[index]->update_chunk_light(neighbours);
+                // 级联处理：高级别包含低级别的全部操作
+                // FULL_RESET  ≥ 3: 重置光照 + 正向传播 + 刷新顶点
+                // PROPAGATE   ≥ 2: 正向传播 + 刷新顶点
+                // VERTEX_ONLY ≥ 1: 仅刷新顶点
+                if(terrainMap[index]->lightUpdate >= FULL_RESET)
+                    terrainMap[index]->init_local_light();
+                if(terrainMap[index]->lightUpdate >= PROPAGATE)
+                    terrainMap[index]->update_chunk_light(neighbours);
                 terrainMap[index]->refresh_vertex_lights(neighbours);
-                terrainMap[index]->isLightDirty = false;
+                terrainMap[index]->lightUpdate = NONE;
             }
         }
     }
