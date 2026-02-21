@@ -152,15 +152,37 @@ void Terrain::update_terrain(const glm::vec3& position, const glm::mat4* vpMatri
 {
     chunk_index_x = floor((float)(position.x+CHUNK_SIZE/2) / (float)CHUNK_SIZE);
     chunk_index_z = floor((float)(position.z+CHUNK_SIZE/2) / (float)CHUNK_SIZE);
+
+    // === Pass 1: 内部光照更新（无需邻居数据） ===
+    // 先处理所有区块的内部光照（pending BFS / FULL_RESET / boundary removal），
+    // 确保各区块边界格光照正确后，再进行跨区块传播和 mesh 构建。
+    // 这避免了遍历顺序导致邻居读到未更新的边界光照的问题。
     for(int i = -2; i <= 2; i++)
     {
         for(int j = -2; j <= 2; j++)
         {
             pair<int, int> index(chunk_index_x+i, chunk_index_z+j);
             if(terrainMap.find(index) == terrainMap.end())
-            {
                 terrainMap[index] = make_unique<Chunk>(perlinNoise, index.first, index.second);
+
+            if(terrainMap[index]->lightUpdate >= FULL_RESET)
+            {
+                terrainMap[index]->init_local_light();
+                terrainMap[index]->clear_pending_lights();
             }
+            else if(terrainMap[index]->has_pending_lights())
+            {
+                terrainMap[index]->process_pending_lights();
+            }
+        }
+    }
+
+    // === Pass 2: 跨区块光照传播 + 几何更新 ===
+    for(int i = -2; i <= 2; i++)
+    {
+        for(int j = -2; j <= 2; j++)
+        {
+            pair<int, int> index(chunk_index_x+i, chunk_index_z+j);
             if(terrainMap[index]->meshUpdate > MESH_NONE || terrainMap[index]->lightUpdate > NONE)
             {
                 // === 加载四个邻居区块（只做一次） ===
@@ -187,22 +209,13 @@ void Terrain::update_terrain(const glm::vec3& position, const glm::mat4* vpMatri
                     terrainMap[back].get()
                 };
 
-                // === Step 1: 光照更新（始终执行，不受可见性影响） ===
+                // 跨区块边界光照传播（此时所有区块内部光照已在 Pass 1 中更新）
                 bool lightChanged = (terrainMap[index]->lightUpdate > NONE);
-                if(terrainMap[index]->lightUpdate >= FULL_RESET)
-                {
-                    terrainMap[index]->init_local_light();
-                    terrainMap[index]->clear_pending_lights();
-                }
-                else if(terrainMap[index]->has_pending_lights())
-                {
-                    terrainMap[index]->process_pending_lights();
-                }
                 if(terrainMap[index]->lightUpdate >= PROPAGATE)
                     terrainMap[index]->update_chunk_light(neighbours);
                 terrainMap[index]->lightUpdate = NONE;
 
-                // === Step 2: 几何更新（不可见时保留 meshUpdate 延迟处理） ===
+                // === 几何更新（不可见时保留 meshUpdate 延迟处理） ===
                 bool visible = !vpMatrix || is_chunk_visible(*vpMatrix, index.first, index.second);
 
                 if(terrainMap[index]->meshUpdate >= MESH_FULL_REBUILD)
