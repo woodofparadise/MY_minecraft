@@ -63,7 +63,12 @@ class Chunk
         std::vector<Vertex> vertices;
         std::vector<Vertex> verticesT;              // 透明方块顶点数据
         std::vector<glm::vec3> transparentFaceCenters; // 每个透明面片的中心（chunk局部空间）
-        std::vector<std::vector<std::vector<short> > > blockLights;
+        std::vector<short> blockLights;
+
+        // 一维索引：blockLights[i][j][k] → blockLights[lightIdx(i,j,k)]
+        static inline int lightIdx(int i, int j, int k) {
+            return i * (CHUNK_SIZE * CHUNK_HEIGHT) + j * CHUNK_HEIGHT + k;
+        }
 
         // 预计算纹理坐标以减少函数调用
         glm::vec2* sideTexCoords; // 存储方块的侧面纹理坐标

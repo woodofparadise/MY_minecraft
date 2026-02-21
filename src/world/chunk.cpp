@@ -140,9 +140,7 @@ Chunk::Chunk(PerlinNoise& perlinNoise, int x, int y)
     double step = 1.0f/CHUNK_SIZE;
     chunkBlocks.resize(CHUNK_SIZE);
     heightMap.resize(CHUNK_SIZE);
-    blockLights.resize(CHUNK_SIZE,
-        std::vector<std::vector<short>>(CHUNK_SIZE,
-            std::vector<short>(CHUNK_HEIGHT, 0)));
+    blockLights.resize(CHUNK_SIZE * CHUNK_SIZE * CHUNK_HEIGHT, 0);
     
     // 基于二维柏林噪声生成随机地形
     for(int i = 0; i < CHUNK_SIZE; i++)
@@ -269,10 +267,15 @@ void Chunk::update_data(const Chunk* neighbours[4])
     vector<unsigned int>().swap(indicesT);
     vector<glm::vec3>().swap(transparentFaceCenters);
 
+    // 边界面临时 buffer（遍历结束后追加到主 buffer）
+    vector<Vertex> bdrVerts, bdrVertsT;
+    vector<unsigned int> bdrIdx, bdrIdxT;
+    vector<glm::vec3> bdrFaceCenters;
+
     glm::vec2 texRight = glm::vec2(1.0f/16.0f, 0.0f);
     glm::vec2 texDown = glm::vec2(0.0f, -1.0f/16.0f);
 
-    // Pass 1: 生成内部面片（不跨越区块边界的面）
+    // 单趟遍历：内部面直接写入主 buffer，边界面写入临时 buffer
     for(int i = CHUNK_SIZE-1; i >= 0; i--)
     {
         for(int j = 0; j < CHUNK_SIZE; j++)
@@ -289,8 +292,6 @@ void Chunk::update_data(const Chunk* neighbours[4])
 
                 for(int face = 0; face < 6; ++face)
                 {
-                    if(is_border_face(i, j, face)) continue;  // 跳过边界面
-
                     BLOCK_TYPE neighborBlock = get_neighbor_block(i, j, k, face, neighbours);
                     if(!is_transparent(neighborBlock)) continue;
                     if(neighborBlock == blockType) continue;
@@ -298,14 +299,40 @@ void Chunk::update_data(const Chunk* neighbours[4])
                     glm::vec2 tex = (face == 5) ? topTex : (face == 4) ? bottomTex : sideTex;
                     float light = get_neighbor_light(i, j, k, face, neighbours);
 
-                    Vertex vertex1 = {blockPos + faceVertexOffset[face][0], faceNormal[face], tex, light};
-                    Vertex vertex2 = {blockPos + faceVertexOffset[face][1], faceNormal[face], tex + texRight, light};
-                    Vertex vertex3 = {blockPos + faceVertexOffset[face][2], faceNormal[face], tex + texDown, light};
-                    Vertex vertex4 = {blockPos + faceVertexOffset[face][3], faceNormal[face], tex + texRight + texDown, light};
-                    if(is_transparent(blockType))
-                        create_face_transparent(vertex1, vertex2, vertex3, vertex4);
+                    Vertex v1 = {blockPos + faceVertexOffset[face][0], faceNormal[face], tex, light};
+                    Vertex v2 = {blockPos + faceVertexOffset[face][1], faceNormal[face], tex + texRight, light};
+                    Vertex v3 = {blockPos + faceVertexOffset[face][2], faceNormal[face], tex + texDown, light};
+                    Vertex v4 = {blockPos + faceVertexOffset[face][3], faceNormal[face], tex + texRight + texDown, light};
+
+                    if(is_border_face(i, j, face))
+                    {
+                        // 边界面 → 临时 buffer
+                        if(is_transparent(blockType))
+                        {
+                            bdrFaceCenters.push_back((v1.Position + v2.Position + v3.Position + v4.Position) * 0.25f);
+                            unsigned int base = (unsigned int)bdrVertsT.size();
+                            bdrVertsT.push_back(v1); bdrVertsT.push_back(v2);
+                            bdrVertsT.push_back(v3); bdrVertsT.push_back(v4);
+                            bdrIdxT.push_back(base+2); bdrIdxT.push_back(base+1); bdrIdxT.push_back(base);
+                            bdrIdxT.push_back(base+1); bdrIdxT.push_back(base+2); bdrIdxT.push_back(base+3);
+                        }
+                        else
+                        {
+                            unsigned int base = (unsigned int)bdrVerts.size();
+                            bdrVerts.push_back(v1); bdrVerts.push_back(v2);
+                            bdrVerts.push_back(v3); bdrVerts.push_back(v4);
+                            bdrIdx.push_back(base+2); bdrIdx.push_back(base+1); bdrIdx.push_back(base);
+                            bdrIdx.push_back(base+1); bdrIdx.push_back(base+2); bdrIdx.push_back(base+3);
+                        }
+                    }
                     else
-                        create_face(vertex1, vertex2, vertex3, vertex4);
+                    {
+                        // 内部面 → 主 buffer
+                        if(is_transparent(blockType))
+                            create_face_transparent(v1, v2, v3, v4);
+                        else
+                            create_face(v1, v2, v3, v4);
+                    }
                 }
             }
         }
@@ -318,43 +345,22 @@ void Chunk::update_data(const Chunk* neighbours[4])
     borderIndexTStart = indicesT.size();
     borderFaceCenterStart = transparentFaceCenters.size();
 
-    // Pass 2: 生成边界面片（跨越区块边界的面）
-    for(int i = CHUNK_SIZE-1; i >= 0; i--)
+    // 追加边界面数据（索引需要 rebase）
+    if(!bdrVerts.empty())
     {
-        for(int j = 0; j < CHUNK_SIZE; j++)
-        {
-            for(int k = 0; k < CHUNK_HEIGHT; k++)
-            {
-                BLOCK_TYPE blockType = chunkBlocks[i][j][k];
-                if(blockType == AIR) continue;
-
-                glm::vec3 blockPos(j, k, CHUNK_SIZE-1-i);
-                glm::vec2 sideTex = sideTexCoords[blockType];
-                glm::vec2 topTex = topTexCoords[blockType];
-                glm::vec2 bottomTex = bottomTexCoords[blockType];
-
-                for(int face = 0; face < 6; ++face)
-                {
-                    if(!is_border_face(i, j, face)) continue;  // 跳过内部面
-
-                    BLOCK_TYPE neighborBlock = get_neighbor_block(i, j, k, face, neighbours);
-                    if(!is_transparent(neighborBlock)) continue;
-                    if(neighborBlock == blockType) continue;
-
-                    glm::vec2 tex = (face == 5) ? topTex : (face == 4) ? bottomTex : sideTex;
-                    float light = get_neighbor_light(i, j, k, face, neighbours);
-
-                    Vertex vertex1 = {blockPos + faceVertexOffset[face][0], faceNormal[face], tex, light};
-                    Vertex vertex2 = {blockPos + faceVertexOffset[face][1], faceNormal[face], tex + texRight, light};
-                    Vertex vertex3 = {blockPos + faceVertexOffset[face][2], faceNormal[face], tex + texDown, light};
-                    Vertex vertex4 = {blockPos + faceVertexOffset[face][3], faceNormal[face], tex + texRight + texDown, light};
-                    if(is_transparent(blockType))
-                        create_face_transparent(vertex1, vertex2, vertex3, vertex4);
-                    else
-                        create_face(vertex1, vertex2, vertex3, vertex4);
-                }
-            }
-        }
+        unsigned int offset = (unsigned int)vertices.size();
+        vertices.insert(vertices.end(), bdrVerts.begin(), bdrVerts.end());
+        for(unsigned int idx : bdrIdx)
+            indices.push_back(idx + offset);
+    }
+    if(!bdrVertsT.empty())
+    {
+        unsigned int offset = (unsigned int)verticesT.size();
+        verticesT.insert(verticesT.end(), bdrVertsT.begin(), bdrVertsT.end());
+        for(unsigned int idx : bdrIdxT)
+            indicesT.push_back(idx + offset);
+        transparentFaceCenters.insert(transparentFaceCenters.end(),
+            bdrFaceCenters.begin(), bdrFaceCenters.end());
     }
 
     upload_data();
@@ -417,7 +423,7 @@ float Chunk::get_neighbor_light(
 
     if(ni >= 0 && ni < CHUNK_SIZE && nj >= 0 && nj < CHUNK_SIZE)
     {
-        return (float)blockLights[ni][nj][nk];
+        return (float)blockLights[lightIdx(ni, nj, nk)];
     }
     // 跨区块访问：get_block_light 使用数组索引（无翻转）
     if(nj == CHUNK_SIZE && neighbours[1])
@@ -669,16 +675,13 @@ short Chunk::get_block_light(const glm::ivec3& index) const
     {
         return 0;
     }
-    return blockLights[index.x][index.y][index.z];
+    return blockLights[lightIdx(index.x, index.y, index.z)];
 }
 
 void Chunk::init_local_light()
 {
     // 重置所有光照值为0
-    for(int i = 0; i < CHUNK_SIZE; ++i)
-        for(int j = 0; j < CHUNK_SIZE; ++j)
-            for(int k = 0; k < CHUNK_HEIGHT; ++k)
-                blockLights[i][j][k] = 0;
+    std::fill(blockLights.begin(), blockLights.end(), (short)0);
 
     std::queue<glm::ivec3 > lightBFS;
     for(int i = 0; i < CHUNK_SIZE; ++i)
@@ -691,7 +694,7 @@ void Chunk::init_local_light()
                 {
                     break;
                 }
-                blockLights[i][j][k] = 15;
+                blockLights[lightIdx(i, j, k)] = 15;
                 lightBFS.push(glm::ivec3(i, j, k));
             }
         }
@@ -713,17 +716,17 @@ void Chunk::update_block_light(std::queue<glm::ivec3 >& lightBFS)
             {
                 continue;
             }
-            else if(blockLights[temp.x][temp.y][temp.z] >= blockLights[local.x][local.y][local.z])
+            else if(blockLights[lightIdx(temp.x, temp.y, temp.z)] >= blockLights[lightIdx(local.x, local.y, local.z)])
             {
                 continue;
             }
             int dec = get_opacity(chunkBlocks[temp.x][temp.y][temp.z]);
-            if(blockLights[local.x][local.y][local.z] - dec <= 0)
+            if(blockLights[lightIdx(local.x, local.y, local.z)] - dec <= 0)
             {
-                blockLights[temp.x][temp.y][temp.z] = 0;
+                blockLights[lightIdx(temp.x, temp.y, temp.z)] = 0;
                 continue;
             }
-            blockLights[temp.x][temp.y][temp.z] = blockLights[local.x][local.y][local.z] - dec;
+            blockLights[lightIdx(temp.x, temp.y, temp.z)] = blockLights[lightIdx(local.x, local.y, local.z)] - dec;
             lightBFS.push(temp);
         }
     }
@@ -744,16 +747,16 @@ void Chunk::update_chunk_light(const Chunk* neighbours[4])
         {
             // j=0 侧 ← left
             int newLight = neighbours[0]->get_block_light({i, CHUNK_SIZE-1, k}) - get_opacity(chunkBlocks[i][0][k]);
-            if(newLight > blockLights[i][0][k])
+            if(newLight > blockLights[lightIdx(i, 0, k)])
             {
-                blockLights[i][0][k] = newLight;
+                blockLights[lightIdx(i, 0, k)] = newLight;
                 lightBFS.push({i, 0, k});
             }
             // j=max 侧 ← right
             newLight = neighbours[1]->get_block_light({i, 0, k}) - get_opacity(chunkBlocks[i][CHUNK_SIZE-1][k]);
-            if(newLight > blockLights[i][CHUNK_SIZE-1][k])
+            if(newLight > blockLights[lightIdx(i, CHUNK_SIZE-1, k)])
             {
-                blockLights[i][CHUNK_SIZE-1][k] = newLight;
+                blockLights[lightIdx(i, CHUNK_SIZE-1, k)] = newLight;
                 lightBFS.push({i, CHUNK_SIZE-1, k});
             }
         }
@@ -766,16 +769,16 @@ void Chunk::update_chunk_light(const Chunk* neighbours[4])
         {
             // i=max 侧 ← forward
             int newLight = neighbours[2]->get_block_light({0, j, k}) - get_opacity(chunkBlocks[CHUNK_SIZE-1][j][k]);
-            if(newLight > blockLights[CHUNK_SIZE-1][j][k])
+            if(newLight > blockLights[lightIdx(CHUNK_SIZE-1, j, k)])
             {
-                blockLights[CHUNK_SIZE-1][j][k] = newLight;
+                blockLights[lightIdx(CHUNK_SIZE-1, j, k)] = newLight;
                 lightBFS.push({CHUNK_SIZE-1, j, k});
             }
             // i=0 侧 ← back
             newLight = neighbours[3]->get_block_light({CHUNK_SIZE-1, j, k}) - get_opacity(chunkBlocks[0][j][k]);
-            if(newLight > blockLights[0][j][k])
+            if(newLight > blockLights[lightIdx(0, j, k)])
             {
-                blockLights[0][j][k] = newLight;
+                blockLights[lightIdx(0, j, k)] = newLight;
                 lightBFS.push({0, j, k});
             }
         }
@@ -833,44 +836,52 @@ void Chunk::refresh_border_mesh(const Chunk* neighbours[4])
     glm::vec2 texRight = glm::vec2(1.0f/16.0f, 0.0f);
     glm::vec2 texDown = glm::vec2(0.0f, -1.0f/16.0f);
 
-    // 重新生成边界面片
-    for(int i = CHUNK_SIZE-1; i >= 0; i--)
+    // 生成单个边界面的 lambda
+    auto gen_border_face = [&](int i, int j, int k, int face)
     {
-        for(int j = 0; j < CHUNK_SIZE; j++)
-        {
-            for(int k = 0; k < CHUNK_HEIGHT; k++)
-            {
-                BLOCK_TYPE blockType = chunkBlocks[i][j][k];
-                if(blockType == AIR) continue;
+        BLOCK_TYPE blockType = chunkBlocks[i][j][k];
+        if(blockType == AIR) return;
 
-                glm::vec3 blockPos(j, k, CHUNK_SIZE-1-i);
-                glm::vec2 sideTex = sideTexCoords[blockType];
-                glm::vec2 topTex = topTexCoords[blockType];
-                glm::vec2 bottomTex = bottomTexCoords[blockType];
+        BLOCK_TYPE neighborBlock = get_neighbor_block(i, j, k, face, neighbours);
+        if(!is_transparent(neighborBlock)) return;
+        if(neighborBlock == blockType) return;
 
-                for(int face = 0; face < 6; ++face)
-                {
-                    if(!is_border_face(i, j, face)) continue;  // 只生成边界面
+        glm::vec3 blockPos(j, k, CHUNK_SIZE-1-i);
+        glm::vec2 tex = (face == 5) ? topTexCoords[blockType]
+                       : (face == 4) ? bottomTexCoords[blockType]
+                       : sideTexCoords[blockType];
+        float light = get_neighbor_light(i, j, k, face, neighbours);
 
-                    BLOCK_TYPE neighborBlock = get_neighbor_block(i, j, k, face, neighbours);
-                    if(!is_transparent(neighborBlock)) continue;
-                    if(neighborBlock == blockType) continue;
+        Vertex v1 = {blockPos + faceVertexOffset[face][0], faceNormal[face], tex, light};
+        Vertex v2 = {blockPos + faceVertexOffset[face][1], faceNormal[face], tex + texRight, light};
+        Vertex v3 = {blockPos + faceVertexOffset[face][2], faceNormal[face], tex + texDown, light};
+        Vertex v4 = {blockPos + faceVertexOffset[face][3], faceNormal[face], tex + texRight + texDown, light};
+        if(is_transparent(blockType))
+            create_face_transparent(v1, v2, v3, v4);
+        else
+            create_face(v1, v2, v3, v4);
+    };
 
-                    glm::vec2 tex = (face == 5) ? topTex : (face == 4) ? bottomTex : sideTex;
-                    float light = get_neighbor_light(i, j, k, face, neighbours);
+    // 只遍历 4 条边界线，每条线检查确定的 1 个面方向
+    // i=0 → face 0 (Back, +Z)
+    for(int j = 0; j < CHUNK_SIZE; j++)
+        for(int k = 0; k < CHUNK_HEIGHT; k++)
+            gen_border_face(0, j, k, 0);
 
-                    Vertex vertex1 = {blockPos + faceVertexOffset[face][0], faceNormal[face], tex, light};
-                    Vertex vertex2 = {blockPos + faceVertexOffset[face][1], faceNormal[face], tex + texRight, light};
-                    Vertex vertex3 = {blockPos + faceVertexOffset[face][2], faceNormal[face], tex + texDown, light};
-                    Vertex vertex4 = {blockPos + faceVertexOffset[face][3], faceNormal[face], tex + texRight + texDown, light};
-                    if(is_transparent(blockType))
-                        create_face_transparent(vertex1, vertex2, vertex3, vertex4);
-                    else
-                        create_face(vertex1, vertex2, vertex3, vertex4);
-                }
-            }
-        }
-    }
+    // i=CHUNK_SIZE-1 → face 1 (Forward, -Z)
+    for(int j = 0; j < CHUNK_SIZE; j++)
+        for(int k = 0; k < CHUNK_HEIGHT; k++)
+            gen_border_face(CHUNK_SIZE-1, j, k, 1);
+
+    // j=0 → face 2 (Left, -X)
+    for(int i = 0; i < CHUNK_SIZE; i++)
+        for(int k = 0; k < CHUNK_HEIGHT; k++)
+            gen_border_face(i, 0, k, 2);
+
+    // j=CHUNK_SIZE-1 → face 3 (Right, +X)
+    for(int i = 0; i < CHUNK_SIZE; i++)
+        for(int k = 0; k < CHUNK_HEIGHT; k++)
+            gen_border_face(i, CHUNK_SIZE-1, k, 3);
 
     upload_border_data();
     upload_border_data_transparent();
@@ -966,7 +977,7 @@ void Chunk::update_light_on_destroy(const glm::ivec3& pos)
     // 检查是否有天空光直射：上方为世界顶部或天空光柱 (light=15 的 AIR)
     bool hasSkyAbove = (pos.z + 1 >= CHUNK_HEIGHT) ||
                        (chunkBlocks[pos.x][pos.y][pos.z + 1] == AIR &&
-                        blockLights[pos.x][pos.y][pos.z + 1] == 15);
+                        blockLights[lightIdx(pos.x, pos.y, pos.z + 1)] == 15);
 
     if(hasSkyAbove)
     {
@@ -974,7 +985,7 @@ void Chunk::update_light_on_destroy(const glm::ivec3& pos)
         for(int k = pos.z; k >= 0; k--)
         {
             if(chunkBlocks[pos.x][pos.y][k] != AIR) break;
-            blockLights[pos.x][pos.y][k] = 15;
+            blockLights[lightIdx(pos.x, pos.y, k)] = 15;
             lightBFS.push({pos.x, pos.y, k});
         }
     }
@@ -986,12 +997,12 @@ void Chunk::update_light_on_destroy(const glm::ivec3& pos)
         {
             glm::ivec3 nb = pos + arrayOffset[d];
             if(!is_valid_index(nb)) continue;
-            maxLight = std::max(maxLight, blockLights[nb.x][nb.y][nb.z]);
+            maxLight = std::max(maxLight, blockLights[lightIdx(nb.x, nb.y, nb.z)]);
         }
         short newLight = maxLight - (short)get_opacity(chunkBlocks[pos.x][pos.y][pos.z]);
         if(newLight > 0)
         {
-            blockLights[pos.x][pos.y][pos.z] = newLight;
+            blockLights[lightIdx(pos.x, pos.y, pos.z)] = newLight;
             lightBFS.push(pos);
         }
     }
@@ -1002,8 +1013,8 @@ void Chunk::update_light_on_destroy(const glm::ivec3& pos)
 void Chunk::update_light_on_create(const glm::ivec3& pos)
 {
     // 放置方块后，需要移除该位置原有的光照并重新传播
-    short oldLight = blockLights[pos.x][pos.y][pos.z];
-    blockLights[pos.x][pos.y][pos.z] = 0;
+    short oldLight = blockLights[lightIdx(pos.x, pos.y, pos.z)];
+    blockLights[lightIdx(pos.x, pos.y, pos.z)] = 0;
     if(oldLight <= 0) return;
 
     // 光照移除 BFS：记录 {位置, 旧光照值}
@@ -1018,8 +1029,8 @@ void Chunk::update_light_on_create(const glm::ivec3& pos)
         for(int k = pos.z - 1; k >= 0; k--)
         {
             if(chunkBlocks[pos.x][pos.y][k] != AIR) break;
-            if(blockLights[pos.x][pos.y][k] != 15) break;
-            blockLights[pos.x][pos.y][k] = 0;
+            if(blockLights[lightIdx(pos.x, pos.y, k)] != 15) break;
+            blockLights[lightIdx(pos.x, pos.y, k)] = 0;
             removalQueue.push({{pos.x, pos.y, k}, 15});
         }
     }
@@ -1035,13 +1046,13 @@ void Chunk::update_light_on_create(const glm::ivec3& pos)
             glm::ivec3 nb = cur + arrayOffset[d];
             if(!is_valid_index(nb)) continue;
 
-            short nbLight = blockLights[nb.x][nb.y][nb.z];
+            short nbLight = blockLights[lightIdx(nb.x, nb.y, nb.z)];
             if(nbLight <= 0) continue;
 
             if(nbLight < curLight)
             {
                 // 该邻居的光照源自当前方块，清零并继续移除
-                blockLights[nb.x][nb.y][nb.z] = 0;
+                blockLights[lightIdx(nb.x, nb.y, nb.z)] = 0;
                 removalQueue.push({nb, nbLight});
             }
             else
@@ -1071,10 +1082,10 @@ void Chunk::remove_boundary_light(int side)
     // 用 lambda 统一处理单个格子：记录旧值并加入移除队列
     auto zero_cell = [&](int i, int j, int k)
     {
-        short old = blockLights[i][j][k];
+        short old = blockLights[lightIdx(i, j, k)];
         if(old > 0)
         {
-            blockLights[i][j][k] = 0;
+            blockLights[lightIdx(i, j, k)] = 0;
             removalQueue.push({{i, j, k}, old});
         }
     };
@@ -1116,12 +1127,12 @@ void Chunk::remove_boundary_light(int side)
             glm::ivec3 nb = cur + arrayOffset[d];
             if(!is_valid_index(nb)) continue;
 
-            short nbLight = blockLights[nb.x][nb.y][nb.z];
+            short nbLight = blockLights[lightIdx(nb.x, nb.y, nb.z)];
             if(nbLight <= 0) continue;
 
             if(nbLight < curLight)
             {
-                blockLights[nb.x][nb.y][nb.z] = 0;
+                blockLights[lightIdx(nb.x, nb.y, nb.z)] = 0;
                 removalQueue.push({nb, nbLight});
             }
             else
@@ -1139,9 +1150,9 @@ void Chunk::remove_boundary_light(int side)
         for(int k = CHUNK_HEIGHT - 1; k >= 0; k--)
         {
             if(chunkBlocks[i][j][k] != AIR) break;
-            if(blockLights[i][j][k] == 0)
+            if(blockLights[lightIdx(i, j, k)] == 0)
             {
-                blockLights[i][j][k] = 15;
+                blockLights[lightIdx(i, j, k)] = 15;
                 repropQueue.push({i, j, k});
             }
         }
