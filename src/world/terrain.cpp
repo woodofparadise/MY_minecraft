@@ -152,40 +152,56 @@ void Terrain::update_terrain(const glm::vec3& position, const glm::mat4* vpMatri
 {
     chunk_index_x = floor((float)(position.x+CHUNK_SIZE/2) / (float)CHUNK_SIZE);
     chunk_index_z = floor((float)(position.z+CHUNK_SIZE/2) / (float)CHUNK_SIZE);
-
-    // === Pass 1: 内部光照更新（无需邻居数据） ===
-    // 先处理所有区块的内部光照（pending BFS / FULL_RESET / boundary removal），
-    // 确保各区块边界格光照正确后，再进行跨区块传播和 mesh 构建。
-    // 这避免了遍历顺序导致邻居读到未更新的边界光照的问题。
     for(int i = -2; i <= 2; i++)
     {
         for(int j = -2; j <= 2; j++)
         {
             pair<int, int> index(chunk_index_x+i, chunk_index_z+j);
             if(terrainMap.find(index) == terrainMap.end())
+            {
                 terrainMap[index] = make_unique<Chunk>(perlinNoise, index.first, index.second);
-
-            if(terrainMap[index]->lightUpdate >= FULL_RESET)
-            {
-                terrainMap[index]->init_local_light();
-                terrainMap[index]->clear_pending_lights();
             }
-            else if(terrainMap[index]->has_pending_lights())
+            if(terrainMap[index]->isModified)
             {
-                terrainMap[index]->process_pending_lights();
-            }
-        }
-    }
+                // 有VP矩阵时跳过不可见chunk的网格构建，保留isModified等进入视野后再构建
+                if(vpMatrix && !is_chunk_visible(*vpMatrix, index.first, index.second))
+                    continue;
 
-    // === Pass 2: 跨区块光照传播 + 几何更新 ===
-    for(int i = -2; i <= 2; i++)
-    {
-        for(int j = -2; j <= 2; j++)
-        {
-            pair<int, int> index(chunk_index_x+i, chunk_index_z+j);
-            if(terrainMap[index]->meshUpdate > MESH_NONE || terrainMap[index]->lightUpdate > NONE)
+                for(int x = -1; x <= 1; x += 2)
+                {
+                    pair<int, int> adjIndex(index.first+x, index.second);
+                    if(terrainMap.find(adjIndex) == terrainMap.end())
+                    {
+                        terrainMap[adjIndex] = make_unique<Chunk>(perlinNoise, adjIndex.first, adjIndex.second);
+                    }
+                }
+                for(int y = -1; y <= 1; y += 2)
+                {
+                    pair<int, int> adjIndex(index.first, index.second+y);
+                    if(terrainMap.find(adjIndex) == terrainMap.end())
+                    {
+                        terrainMap[adjIndex] = make_unique<Chunk>(perlinNoise, adjIndex.first, adjIndex.second);
+                    }
+                }
+                pair<int, int> left(index.first-1, index.second); // 左 (-X)
+                pair<int, int> right(index.first+1, index.second); // 右 (+X)
+                pair<int, int> forward(index.first, index.second-1); // 前 (-Z)
+                pair<int, int> back(index.first, index.second+1); // 后 (+Z)
+
+                // neighbours: [0]=left(-X), [1]=right(+X), [2]=forward(-Z), [3]=back(+Z)
+                const Chunk* neighbours[4] = {
+                    terrainMap[left].get(),
+                    terrainMap[right].get(),
+                    terrainMap[forward].get(),
+                    terrainMap[back].get()
+                };
+                terrainMap[index]->update_chunk_light(neighbours);
+                terrainMap[index]->update_data(neighbours);
+                terrainMap[index]->lightUpdate = NONE;
+            }
+            else if(terrainMap[index]->lightUpdate > NONE)
             {
-                // === 加载四个邻居区块（只做一次） ===
+                // 光照变化：跳过几何重建，按等级执行级联更新
                 for(int x = -1; x <= 1; x += 2)
                 {
                     pair<int, int> adjIndex(index.first+x, index.second);
@@ -202,47 +218,23 @@ void Terrain::update_terrain(const glm::vec3& position, const glm::mat4* vpMatri
                 pair<int, int> right(index.first+1, index.second);
                 pair<int, int> forward(index.first, index.second-1);
                 pair<int, int> back(index.first, index.second+1);
+
                 const Chunk* neighbours[4] = {
                     terrainMap[left].get(),
                     terrainMap[right].get(),
                     terrainMap[forward].get(),
                     terrainMap[back].get()
                 };
-
-                // 跨区块边界光照传播（此时所有区块内部光照已在 Pass 1 中更新）
-                bool lightChanged = (terrainMap[index]->lightUpdate > NONE);
+                // 级联处理：高级别包含低级别的全部操作
+                // FULL_RESET  ≥ 3: 重置光照 + 正向传播 + 刷新顶点
+                // PROPAGATE   ≥ 2: 正向传播 + 刷新顶点
+                // VERTEX_ONLY ≥ 1: 仅刷新顶点
+                if(terrainMap[index]->lightUpdate >= FULL_RESET)
+                    terrainMap[index]->init_local_light();
                 if(terrainMap[index]->lightUpdate >= PROPAGATE)
                     terrainMap[index]->update_chunk_light(neighbours);
+                terrainMap[index]->refresh_vertex_lights(neighbours);
                 terrainMap[index]->lightUpdate = NONE;
-
-                // === 几何更新（不可见时保留 meshUpdate 延迟处理） ===
-                bool visible = !vpMatrix || is_chunk_visible(*vpMatrix, index.first, index.second);
-
-                if(terrainMap[index]->meshUpdate >= MESH_FULL_REBUILD)
-                {
-                    if(visible)
-                        terrainMap[index]->update_data(neighbours);
-                    // else: meshUpdate 保留，进入视野后再构建
-                }
-                else if(terrainMap[index]->meshUpdate >= MESH_BORDER_REFRESH)
-                {
-                    if(visible)
-                    {
-                        terrainMap[index]->refresh_border_mesh(neighbours);
-                        if(lightChanged)
-                            terrainMap[index]->refresh_vertex_lights(neighbours);
-                    }
-                    else if(lightChanged)
-                    {
-                        // 光照已处理但 mesh 不可见，标记下帧继续刷新顶点
-                        terrainMap[index]->lightUpdate = VERTEX_ONLY;
-                    }
-                }
-                else if(lightChanged)
-                {
-                    // 仅光照变化，刷新顶点光照
-                    terrainMap[index]->refresh_vertex_lights(neighbours);
-                }
             }
         }
     }
@@ -272,6 +264,7 @@ bool Terrain::destroy_block(glm::ivec3& selectedBlock)
         terrainMap[forward].get(), terrainMap[back].get()
     };
 
+    // set_block 内部的 update_light_on_destroy 会精确标记受影响的邻居 isLightDirty
     return terrainMap[index]->set_block(
         selectedBlock.x - chunk_index_x*CHUNK_SIZE + CHUNK_SIZE/2,
         selectedBlock.z - chunk_index_z*CHUNK_SIZE + CHUNK_SIZE/2,
