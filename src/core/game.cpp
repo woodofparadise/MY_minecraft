@@ -260,13 +260,13 @@ void Game::process_input(GLFWwindow *window)
         return ;
     }
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-        game->player.move(FORWARD, game->deltaTime);
+        game->player.move(FORWARD);
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-        game->player.move(BACKWARD, game->deltaTime);
+        game->player.move(BACKWARD);
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-        game->player.move(LEFT, game->deltaTime);
+        game->player.move(LEFT);
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-        game->player.move(RIGHT, game->deltaTime);
+        game->player.move(RIGHT);
 }
 
 void Game::mouse_button_callback(GLFWwindow* window, int button, int action, int mods)

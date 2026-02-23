@@ -46,6 +46,6 @@ bool check_collision(const AABB& player, const glm::ivec3& blockPos);
 
 float calculate_overlap(const AABB& playerBox, const glm::ivec3& blockPos, int axis);
 
-void resolve_collisions(glm::vec3& position, const glm::vec3& playerSize, glm::vec3& velocity, AABB& playerBox, Terrain& terrain);
+void resolve_collisions(glm::vec3& position, const glm::vec3& playerSize, glm::vec3& velocity, AABB& playerBox, Terrain& terrain, float deltaTime);
 
 #endif

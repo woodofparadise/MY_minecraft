@@ -95,14 +95,14 @@ void AABB::draw_AABB(Shader& shader)
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 }
 
-void resolve_collisions(glm::vec3& position, const glm::vec3& playerSize, glm::vec3& velocity, AABB& playerBox, Terrain& terrain)
+void resolve_collisions(glm::vec3& position, const glm::vec3& playerSize, glm::vec3& velocity, AABB& playerBox, Terrain& terrain, float deltaTime)
 {
-    // cout <<position.x << " " << position.y << " " << position.z << endl;
     // 分别处理每个轴
     for (int axis = 0; axis < 3; ++axis)
     {
         axis = (axis+1)%3;
-        position[axis] += velocity[axis];
+        float displacement = velocity[axis] * deltaTime;
+        position[axis] += displacement;
         playerBox.update_AABB(position+glm::vec3(0.0f, 0.9f, 0.0f), playerSize);
         // 只检查可能碰撞的方块
         glm::ivec3 minBlock = glm::floor(playerBox.minCoord);
@@ -119,7 +119,7 @@ void resolve_collisions(glm::vec3& position, const glm::vec3& playerSize, glm::v
                     {
                         if (check_collision(playerBox, blockPos))
                         {
-                            position[axis] -= velocity[axis];
+                            position[axis] -= displacement;
                             velocity[axis] = 0.0f;
                             y = maxBlock.y+1;
                             x = maxBlock.x+1;

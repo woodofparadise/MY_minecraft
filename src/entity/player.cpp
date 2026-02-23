@@ -294,14 +294,14 @@ void Player::draw_player(Shader& playerShader)
     glBindVertexArray(0);
 }
 
-void Player::move(const MOVE_MODE& mode, const float& deltaTime)
+void Player::move(const MOVE_MODE& mode)
 {
     switch(mode)
     {
-        case(FORWARD):{velocity += (deltaTime*10*glm::vec3(camera.cameraFront.x, 0.0f, camera.cameraFront.z)); break;}
-        case(BACKWARD):{velocity -= (deltaTime*10*glm::vec3(camera.cameraFront.x, 0.0f, camera.cameraFront.z)); break;}
-        case(LEFT):{velocity -= (deltaTime*10*glm::vec3(camera.cameraRight.x, 0.0f, camera.cameraRight.z)); break;}
-        case(RIGHT):{velocity += (deltaTime*10*glm::vec3(camera.cameraRight.x, 0.0f, camera.cameraRight.z)); break;}
+        case(FORWARD):{velocity += (10.0f*glm::vec3(camera.cameraFront.x, 0.0f, camera.cameraFront.z)); break;}
+        case(BACKWARD):{velocity -= (10.0f*glm::vec3(camera.cameraFront.x, 0.0f, camera.cameraFront.z)); break;}
+        case(LEFT):{velocity -= (10.0f*glm::vec3(camera.cameraRight.x, 0.0f, camera.cameraRight.z)); break;}
+        case(RIGHT):{velocity += (10.0f*glm::vec3(camera.cameraRight.x, 0.0f, camera.cameraRight.z)); break;}
     }
 }
 
@@ -318,8 +318,17 @@ void Player::jump()
 
 void Player::update_position(Terrain& terrain, const float& deltaTime)
 {
-    // 根据速度更新位置
-    resolve_collisions(position, playerSize, velocity, playerBox, terrain);
+    // 钳制deltaTime，防止首帧或卡顿时物理爆炸
+    float dt = std::min(deltaTime, 0.05f);
+
+    // 先应用重力（半隐式欧拉：先更新速度，再更新位置）
+    if(!isOnGround)
+    {
+        velocity.y += gravity*dt;
+    }
+
+    // 根据速度和deltaTime更新位置
+    resolve_collisions(position, playerSize, velocity, playerBox, terrain, dt);
 
     // 更新碰撞箱
     playerBox.update_AABB(position+glm::vec3(0.0f, 0.9f, 0.0f), playerSize);
@@ -329,11 +338,6 @@ void Player::update_position(Terrain& terrain, const float& deltaTime)
     {
         isJumping = false;
         velocity.y = 0; // 防止在地面上积累重力
-    }
-    // 不在地面的时候需要考虑重力加速度
-    else if(!isOnGround)
-    {
-        velocity.y += gravity*deltaTime;
     }
     // 其他两个轴的速度每一帧重置
     velocity.x = 0.0f;
