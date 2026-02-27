@@ -104,8 +104,7 @@ void Game::game_loop()
             displayVertices = terrain.drawnVertices;
             displayTriangles = terrain.drawnTriangles;
         }
-        glfwSetCursorPos(window, SCR_WIDTH/2, SCR_HEIGHT/2);
-        // glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        glfwPollEvents(); // 处理鼠标/键盘事件，更新摄像机方向
         process_input(window); // 在每一帧检测窗口是否返回
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f); // 设置清空屏幕所用的颜色
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // 清除颜色缓冲和深度缓冲
@@ -158,9 +157,9 @@ void Game::game_loop()
             textRenderer.renderText(textShader, ssTri.str(), SCR_WIDTH - 130.0f, SCR_HEIGHT - 68.0f, 0.5f, glm::vec3(0.8f, 0.8f, 0.8f));
         }
 
-        // 检查并调用事件，交换缓冲
-        glfwSwapBuffers(window); // 交换颜色缓冲
-        glfwPollEvents(); // 检查有无触发事件，比如键盘输入、鼠标移动
+        // 交换缓冲，重置光标到屏幕中心
+        glfwSwapBuffers(window);
+        glfwSetCursorPos(window, SCR_WIDTH/2, SCR_HEIGHT/2);
         // break;
     }
     return ;
