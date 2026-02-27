@@ -245,7 +245,7 @@ Chunk::Chunk(PerlinNoise& perlinNoise, int x, int y)
     sideTexCoords = new glm::vec2[BLOCK_TYPE_NUM];
     topTexCoords = new glm::vec2[BLOCK_TYPE_NUM];
     bottomTexCoords = new glm::vec2[BLOCK_TYPE_NUM];
-    for(int blockType = 1; blockType <= BLOCK_TYPE_NUM; ++blockType)
+    for(int blockType = 1; blockType < BLOCK_TYPE_NUM; ++blockType)
     {
         sideTexCoords[blockType] = get_tex_coord(blockType, 3);
         topTexCoords[blockType] = get_tex_coord(blockType, 1);
@@ -286,6 +286,35 @@ void Chunk::update_data(const Chunk* neighbours[4])
                 if(blockType == AIR) continue;
 
                 glm::vec3 blockPos(j, k, CHUNK_SIZE-1-i);
+
+                // ===== 火把：十字交叉面片（2 对角 quad × 正反面 = 4 quad） =====
+                if(blockType == TORCH)
+                {
+                    glm::vec2 tex = sideTexCoords[TORCH];
+                    float light = (float)blockLights[lightIdx(i, j, k)];
+
+                    // Quad A (╲ 对角): (0,*,1) ↔ (1,*,0)
+                    // 用 face 5 (Up) 法线，首顶点 = blockPos+(0,1,1) = faceVertexOffset[5][0]
+                    Vertex a0 = {blockPos + glm::vec3(0,1,1), faceNormal[5], tex, light};
+                    Vertex a1 = {blockPos + glm::vec3(1,1,0), faceNormal[5], tex + texRight, light};
+                    Vertex a2 = {blockPos + glm::vec3(0,0,1), faceNormal[5], tex + texDown, light};
+                    Vertex a3 = {blockPos + glm::vec3(1,0,0), faceNormal[5], tex + texRight + texDown, light};
+                    create_face(a0, a1, a2, a3);        // 正面
+                    create_face(a0, a2, a1, a3);        // 反面（翻转绕序）
+
+                    // Quad B (╱ 对角): (1,*,1) ↔ (0,*,0)
+                    // 用 face 3 (Right) 法线，首顶点 = blockPos+(1,1,1) = faceVertexOffset[3][0]
+                    Vertex b0 = {blockPos + glm::vec3(1,1,1), faceNormal[3], tex, light};
+                    Vertex b1 = {blockPos + glm::vec3(0,1,0), faceNormal[3], tex + texRight, light};
+                    Vertex b2 = {blockPos + glm::vec3(1,0,1), faceNormal[3], tex + texDown, light};
+                    Vertex b3 = {blockPos + glm::vec3(0,0,0), faceNormal[3], tex + texRight + texDown, light};
+                    create_face(b0, b1, b2, b3);        // 正面
+                    create_face(b0, b2, b1, b3);        // 反面
+
+                    continue;
+                }
+
+                // ===== 常规方块：6 面检查 =====
                 glm::vec2 sideTex = sideTexCoords[blockType];
                 glm::vec2 topTex = topTexCoords[blockType];
                 glm::vec2 bottomTex = bottomTexCoords[blockType];
@@ -307,7 +336,7 @@ void Chunk::update_data(const Chunk* neighbours[4])
                     if(is_border_face(i, j, face))
                     {
                         // 边界面 → 临时 buffer
-                        if(is_transparent(blockType))
+                        if(is_translucent(blockType))
                         {
                             bdrFaceCenters.push_back((v1.Position + v2.Position + v3.Position + v4.Position) * 0.25f);
                             unsigned int base = (unsigned int)bdrVertsT.size();
@@ -328,7 +357,7 @@ void Chunk::update_data(const Chunk* neighbours[4])
                     else
                     {
                         // 内部面 → 主 buffer
-                        if(is_transparent(blockType))
+                        if(is_translucent(blockType))
                             create_face_transparent(v1, v2, v3, v4);
                         else
                             create_face(v1, v2, v3, v4);
@@ -484,6 +513,9 @@ bool Chunk::set_block(int x, int y, int z, BLOCK_TYPE blockType, Chunk* neighbou
     // 标记自身：完整重建 mesh + 增量光照更新
     meshUpdate = std::max(meshUpdate, MESH_FULL_REBUILD);
     bool isDestroy = (blockType == AIR && oldType != AIR);
+    // 火把光照反转：放置火把 → 光照上升路径，破坏火把 → 光照下降路径
+    if(blockType == TORCH) isDestroy = true;
+    if(oldType == TORCH && blockType == AIR) isDestroy = false;
     pendingLightUpdates.push_back({{i, j, z}, isDestroy});
     lightUpdate = std::max(lightUpdate, PROPAGATE);
 
@@ -840,7 +872,7 @@ void Chunk::refresh_border_mesh(const Chunk* neighbours[4])
     auto gen_border_face = [&](int i, int j, int k, int face)
     {
         BLOCK_TYPE blockType = chunkBlocks[i][j][k];
-        if(blockType == AIR) return;
+        if(blockType == AIR || blockType == TORCH) return;
 
         BLOCK_TYPE neighborBlock = get_neighbor_block(i, j, k, face, neighbours);
         if(!is_transparent(neighborBlock)) return;
@@ -856,7 +888,7 @@ void Chunk::refresh_border_mesh(const Chunk* neighbours[4])
         Vertex v2 = {blockPos + faceVertexOffset[face][1], faceNormal[face], tex + texRight, light};
         Vertex v3 = {blockPos + faceVertexOffset[face][2], faceNormal[face], tex + texDown, light};
         Vertex v4 = {blockPos + faceVertexOffset[face][3], faceNormal[face], tex + texRight + texDown, light};
-        if(is_transparent(blockType))
+        if(is_translucent(blockType))
             create_face_transparent(v1, v2, v3, v4);
         else
             create_face(v1, v2, v3, v4);
@@ -899,7 +931,11 @@ void Chunk::refresh_vertex_lights(const Chunk* neighbours[4])
         int i = CHUNK_SIZE - 1 - (int)blockPos.z;
         int j = (int)blockPos.x;
         int k = (int)blockPos.y;
-        float light = get_neighbor_light(i, j, k, face, neighbours);
+        float light;
+        if(is_valid_index({i, j, k}) && chunkBlocks[i][j][k] == TORCH)
+            light = (float)blockLights[lightIdx(i, j, k)];
+        else
+            light = get_neighbor_light(i, j, k, face, neighbours);
         vertices[v].LightLevel = light;
         vertices[v+1].LightLevel = light;
         vertices[v+2].LightLevel = light;
@@ -1007,6 +1043,14 @@ void Chunk::update_light_on_destroy(const glm::ivec3& pos)
         }
     }
 
+    // 火把光源播种：光照等级 14
+    if(chunkBlocks[pos.x][pos.y][pos.z] == TORCH)
+    {
+        blockLights[lightIdx(pos.x, pos.y, pos.z)] = std::max(
+            blockLights[lightIdx(pos.x, pos.y, pos.z)], (short)14);
+        lightBFS.push(pos);
+    }
+
     update_block_light(lightBFS);
 }
 
@@ -1023,8 +1067,9 @@ void Chunk::update_light_on_create(const glm::ivec3& pos)
 
     removalQueue.push({pos, oldLight});
 
-    // 如果该位置原为天空光柱 (light=15)，向下移除直到柱底
-    if(oldLight == 15)
+    // 如果该位置原为天空光柱 (light=15)，且放置了实心方块，向下截断光柱
+    // 注意：pos 为 AIR 时（如破坏火把）不截断，天空光柱应保持完整
+    if(oldLight == 15 && chunkBlocks[pos.x][pos.y][pos.z] != AIR)
     {
         for(int k = pos.z - 1; k >= 0; k--)
         {
@@ -1059,6 +1104,23 @@ void Chunk::update_light_on_create(const glm::ivec3& pos)
             {
                 // 该邻居有独立光源，作为重传播种子
                 repropQueue.push(nb);
+            }
+        }
+    }
+
+    // 移除 BFS 结束后，如果 pos 现在是 AIR（如破坏火把），恢复天空光柱
+    if(chunkBlocks[pos.x][pos.y][pos.z] == AIR)
+    {
+        bool hasSkyAbove = (pos.z + 1 >= CHUNK_HEIGHT) ||
+                           (chunkBlocks[pos.x][pos.y][pos.z + 1] == AIR &&
+                            blockLights[lightIdx(pos.x, pos.y, pos.z + 1)] == 15);
+        if(hasSkyAbove)
+        {
+            for(int k = pos.z; k >= 0; k--)
+            {
+                if(chunkBlocks[pos.x][pos.y][k] != AIR) break;
+                blockLights[lightIdx(pos.x, pos.y, k)] = 15;
+                repropQueue.push({pos.x, pos.y, k});
             }
         }
     }

@@ -1,5 +1,6 @@
 #include <glad/glad.h>
 #include "collision.h"
+#include "../world/block.h"
 
 // 碰撞箱顶点数据（线框模式）
 std::vector<glm::vec3>& get_AABBvertices() {
@@ -115,7 +116,8 @@ void resolve_collisions(glm::vec3& position, const glm::vec3& playerSize, glm::v
                 for (int z = minBlock.z; z <= maxBlock.z; ++z)
                 {
                     glm::vec3 blockPos = glm::vec3(x, y, z);
-                    if (terrain.get_block_type(blockPos) != AIR)
+                    BLOCK_TYPE bt = terrain.get_block_type(blockPos);
+                    if (bt != AIR && bt != TORCH)
                     {
                         if (check_collision(playerBox, blockPos))
                         {

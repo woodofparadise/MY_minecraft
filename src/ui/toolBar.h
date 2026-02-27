@@ -16,7 +16,7 @@ class toolBar
 {
 public:
     int selectedBlock = 0;                  // 标记当前选中的工具栏格子
-    BLOCK_TYPE toolbarBlock[9]= {AIR, GRASS, STONE, SAND, WATER, SOIL, GLASS, COAL, DIAMOND};
+    BLOCK_TYPE toolbarBlock[9]= {AIR, GRASS, STONE, SAND, WATER, SOIL, GLASS, TORCH, DIAMOND};
 
     toolBar(){};
     void set_toolbar();
