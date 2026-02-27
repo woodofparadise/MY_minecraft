@@ -11,6 +11,7 @@
 - **玩家模型**：Steve 风格的可渲染玩家角色，支持皮肤纹理
 - **视角切换**：第一人称/第三人称视角切换
 - **透明方块渲染**：两遍渲染（不透明 + 透明），Alpha 混合，逐面片距离排序
+- **光照系统**：基于 BFS 的逐方块光照传播，天空光柱直射 + 衰减扩散，增量更新（破坏/放置方块不全量重算）
 - **视锥体剔除**：基于 VP 矩阵的 chunk 级视锥体剔除，跳过不可见区块的渲染和网格构建
 - **HUD 界面**：屏幕准星、9 格工具栏、方块选择、FPS/顶点数/面片数实时显示
 
@@ -128,16 +129,28 @@ minecraft/
 
 ## 技术实现
 
-- **区块系统**：32×128×32 的区块划分，动态加载玩家周围 3×3 区块
+- **区块系统**：32×128×32 的区块划分，动态加载玩家周围 5×5 区块
 - **地形生成**：
   - 分形布朗运动噪声（FBM）叠加多层 Perlin 噪声
   - 三层噪声混合：大陆性（continental）、侵蚀度（erosion）、峰谷（peaks）
   - 样条曲线映射实现平滑的海洋-平原-山地过渡
+- **光照系统**：
+  - 天空光柱直射（连续 AIR 列 light=15）+ BFS 衰减传播（每格 -opacity）
+  - 两阶段更新：阶段一 `init_local_light` 区块内部光照，阶段二 `update_chunk_light` 跨区块边界传播
+  - 增量更新：`set_block` 仅记录 `pendingLightUpdates`，由 `update_terrain` 统一调度
+  - 破坏方块：天空光柱恢复 + 正向 BFS 传播
+  - 放置方块：移除 BFS（清零依赖光照）+ 天空光柱截断 + 重传播
+  - 邻居边界增量移除 `remove_boundary_light`：替代全量重算，仅处理 ~4K 边界格
+  - 四级光照更新等级（`LightUpdateLevel`）：NONE / VERTEX_ONLY / PROPAGATE / FULL_RESET，级联包含
 - **渲染优化**：
   - 仅渲染与空气接触的方块表面，相邻区块边界面剔除
   - 方向表驱动的面剔除（`faceVertexOffset[6][4]` / `faceNormal[6]`）
   - chunk 级视锥体剔除（Gribb/Hartmann 平面提取 + AABB P-vertex 测试）
-  - 不可见 chunk 延迟网格构建（保留 `isModified` 标记，进入视野后再构建）
+  - 不可见 chunk 延迟网格构建（保留 `meshUpdate` 标记，进入视野后再构建）
+  - 三级 mesh 更新等级（`MeshUpdateLevel`）：NONE / BORDER_REFRESH / FULL_REBUILD
+  - `update_data` 单趟遍历：内部面直接写入主 buffer，边界面写入临时 buffer 后追加
+  - `refresh_border_mesh` 定向遍历：仅遍历 4 条边界线（16K 格），每条线生成确定的面方向
+  - `blockLights` 一维化存储：连续内存布局，`std::fill` 清零，改善缓存命中率
 - **透明渲染**：
   - 不透明/透明网格分离（独立 VAO/VBO/EBO）
   - 两遍渲染：Pass1 不透明（深度写入 ON）→ Pass2 透明（Alpha 混合 ON，深度写入 OFF）
