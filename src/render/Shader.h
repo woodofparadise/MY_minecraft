@@ -120,6 +120,11 @@ public:
         glUniform3f(glGetUniformLocation(ID, name.c_str()), value.x, value.y, value.z); 
     }
 
+    void set_vec2(const std::string &name, const glm::vec2& value) const
+    {
+        glUniform2f(glGetUniformLocation(ID, name.c_str()), value.x, value.y); 
+    }
+
 private:
     // utility function for checking shader compilation/linking errors.
     // ------------------------------------------------------------------------

@@ -1,14 +1,15 @@
 #version 450 core
 
-in vec3 Normal;
-in vec3 FragPos;
 in vec2 TexCoords;
 in float LightLevel;
+in float FragDist;
 
 uniform sampler2D blockTexture;
 uniform sampler2D playerTexture;
 
 uniform int textureUsed;
+uniform vec2 viewRange;
+uniform vec3 skyColor;
 
 out vec4 FragColor;
 
@@ -25,8 +26,13 @@ void main()
     if (texColor.a < 0.1)
         discard;
 
-    // 非线性亮度曲线：等级15=1.0, 等级0≈0.035
+    // 光照
     float brightness = pow(0.8, 15.0 - LightLevel);
+    vec3 litColor = texColor.rgb * brightness;
 
-    FragColor = vec4(texColor.rgb * brightness, texColor.a);
+    // 雾化
+    float fogFactor = smoothstep(viewRange.x, viewRange.y, FragDist);
+    vec3 finalColor = mix(litColor, skyColor, fogFactor);
+
+    FragColor = vec4(finalColor, texColor.a);
 }

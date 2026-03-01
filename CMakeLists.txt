@@ -180,22 +180,26 @@ set(RESOURCE_DIRS
     Textures
 )
 
-# 复制资源文件到构建目录
+# 构建资源复制命令列表
+set(COPY_COMMANDS "")
 foreach(RESOURCE_DIR ${RESOURCE_DIRS})
-    # 检查资源目录是否存在
     if(EXISTS ${CMAKE_SOURCE_DIR}/${RESOURCE_DIR})
-        # 创建自定义命令，在构建后复制资源
-        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        list(APPEND COPY_COMMANDS
             COMMAND ${CMAKE_COMMAND} -E copy_directory
                 ${CMAKE_SOURCE_DIR}/${RESOURCE_DIR}
-                $<TARGET_FILE_DIR:${PROJECT_NAME}>/${RESOURCE_DIR}
-            COMMENT "Copying ${RESOURCE_DIR} to build directory"
+                ${CMAKE_BINARY_DIR}/${RESOURCE_DIR}
         )
         message(STATUS "Will copy ${RESOURCE_DIR} to build directory")
     else()
         message(WARNING "Resource directory not found: ${RESOURCE_DIR}")
     endif()
 endforeach()
+
+# 每次构建都同步资源文件到构建目录
+add_custom_target(copy_resources ALL
+    ${COPY_COMMANDS}
+    COMMENT "Syncing resource files to build directory"
+)
 
 # ============================================================================
 # 编译选项（针对不同编译器）

@@ -106,7 +106,7 @@ void Game::game_loop()
         }
         glfwPollEvents(); // 处理鼠标/键盘事件，更新摄像机方向
         process_input(window); // 在每一帧检测窗口是否返回
-        glClearColor(0.2f, 0.3f, 0.3f, 1.0f); // 设置清空屏幕所用的颜色
+        glClearColor(skyColor.x, skyColor.y, skyColor.z, 1.0f); // 设置清空屏幕所用的颜色
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // 清除颜色缓冲和深度缓冲
 
         glm::mat4 view = player.camera.get_view_matrix();                // 观察矩阵
@@ -119,6 +119,9 @@ void Game::game_loop()
         terrain.update_terrain(player.camera.cameraPos, &vpMatrix);       // 更新地形（带视锥剔除）
         blockShader.set_mat4("view", view);
         blockShader.set_mat4("projection", projection);
+        blockShader.set_vec3("viewPos", player.camera.cameraPos);
+        blockShader.set_vec2("viewRange", {CHUNK_SIZE, CHUNK_SIZE*2});   // 视距
+        blockShader.set_vec3("skyColor", skyColor); 
         terrain.draw_terrain(blockShader, vpMatrix, player.camera.cameraPos); // 绘制地形（带视锥剔除+透明排序）
         if(!player.cameraMode)
         {

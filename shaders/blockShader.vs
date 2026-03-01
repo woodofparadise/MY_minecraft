@@ -7,18 +7,17 @@ layout (location = 3) in float aLightLevel;
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
-uniform mat3 normalModel;
+uniform vec3 viewPos;
 
-out vec3 Normal;
-out vec3 FragPos;
 out vec2 TexCoords;
 out float LightLevel;
+out float FragDist;
 
 void main()
 {
-    gl_Position = projection * view * model * vec4(aPos, 1.0);
-    FragPos = vec3(model * vec4(aPos, 1.0));
-    Normal = normalModel * aNormal;
+    vec4 worldPos = model * vec4(aPos, 1.0);
+    gl_Position = projection * view * worldPos;
     TexCoords = aTexCoords;
     LightLevel = aLightLevel;
+    FragDist = length(viewPos - worldPos.xyz);
 }
