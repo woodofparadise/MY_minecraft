@@ -33,6 +33,8 @@ Game::Game(bool& gameState, int seed)
     selectionShader.init_shader("./shaders/selectionShader.vs", "./shaders/selectionShader.fs");
     blockShader.init_shader("./shaders/blockShader.vs", "./shaders/blockShader.fs");
     HUDShader.init_shader("./shaders/HUDShader.vs", "./shaders/HUDShader.fs");
+    skyShader.init_shader("./shaders/skyShader.vs", "./shaders/skyShader.fs");
+    skyBox.init();
     textShader.init_shader("./shaders/textShader.vs", "./shaders/textShader.fs");
 
     // 初始化文字渲染器（使用系统字体）
@@ -96,6 +98,8 @@ void Game::game_loop()
         // 计算FPS
         frameCount++;
         fpsAccumulator += deltaTime;
+        skyBox.update(deltaTime);
+        skyColor = skyBox.getHorizonColor();
         if (fpsAccumulator >= fpsUpdateInterval)
         {
             currentFPS = frameCount / fpsAccumulator;
@@ -114,6 +118,12 @@ void Game::game_loop()
 
         glm::mat4 vpMatrix = projection * view;                            // VP矩阵用于视锥体剔除
 
+        // 先渲染天空（关闭深度测试，天空永远在最后面）
+        glDisable(GL_DEPTH_TEST);
+        skyBox.render(skyShader, view, projection, player.camera.cameraPos);
+        glEnable(GL_DEPTH_TEST);
+
+        // 渲染地形和玩家
         blockShader.use();
         player.update_position(terrain, deltaTime);
         terrain.update_terrain(player.camera.cameraPos, &vpMatrix);       // 更新地形（带视锥剔除）
@@ -121,7 +131,7 @@ void Game::game_loop()
         blockShader.set_mat4("projection", projection);
         blockShader.set_vec3("viewPos", player.camera.cameraPos);
         blockShader.set_vec2("viewRange", {CHUNK_SIZE, CHUNK_SIZE*2});   // 视距
-        blockShader.set_vec3("skyColor", skyColor); 
+        blockShader.set_vec3("skyColor", skyColor);
         terrain.draw_terrain(blockShader, vpMatrix, player.camera.cameraPos); // 绘制地形（带视锥剔除+透明排序）
         if(!player.cameraMode)
         {
@@ -179,6 +189,7 @@ void Game::clear()
     }
     toolbar.clear();
     textRenderer.clear();
+    skyBox.clear();
     glfwDestroyWindow(window);
     cout << "Quiting game..." << endl;
 }

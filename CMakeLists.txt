@@ -92,6 +92,7 @@ set(WORLD_SOURCES
 set(ENTITY_SOURCES
     src/entity/player.cpp
     src/entity/collision.cpp
+    src/entity/skyBox.cpp
 )
 
 # 渲染模块源文件

@@ -14,6 +14,7 @@
 #include "preDefined.h"
 #include "../ui/HUDpainter.h"
 #include "../ui/textRenderer.h"
+#include "../entity/skyBox.h"
 #include <glm/glm.hpp>
 #include <sstream>
 #include <iomanip>
@@ -25,6 +26,7 @@ class Game
     public:
         Player player;              // 主角
         Terrain terrain;            // 世界地图
+        SkyBox skyBox;              // 天空盒
 
         glm::ivec3 selectedBlock;   // 选中的方块
         glm::ivec3 lastHitBlock;    // 可放置方块的位置(实际上就是步进算法直到selectedBlock前的最后一个空气方块)
@@ -33,6 +35,7 @@ class Game
         Shader blockShader;
         Shader HUDShader;
         Shader textShader;
+        Shader skyShader;
 
         TextRenderer textRenderer;
         float fpsUpdateInterval = 0.5f;  // FPS更新间隔（秒）
