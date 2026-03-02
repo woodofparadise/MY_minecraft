@@ -42,4 +42,7 @@ bool is_translucent(BLOCK_TYPE blockType);
 
 int get_opacity(BLOCK_TYPE type);
 
+// 获取方块发光亮度（非发光方块返回 -1）
+short get_block_luminous(BLOCK_TYPE blockType);
+
 #endif

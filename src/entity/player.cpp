@@ -263,6 +263,8 @@ void Player::upload_data(char const* path)
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, Texcoord));
     glEnableVertexAttribArray(3);
     glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, LightLevel));
+    glEnableVertexAttribArray(4);
+    glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, BlockLight));
 
     playerTexture.load_texture(path);
 

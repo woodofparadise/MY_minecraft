@@ -1,7 +1,8 @@
 #version 450 core
 
 in vec2 TexCoords;
-in float LightLevel;
+in float LightLevel;   // 天空光
+in float BlockLight;   // 方块光（火把等）
 in float FragDist;
 
 uniform sampler2D blockTexture;
@@ -27,9 +28,10 @@ void main()
     if (texColor.a < 0.1)
         discard;
 
-    // 光照 + 环境光色调
-    float brightness = pow(0.8, 15.0 - LightLevel);
-    vec3 litColor = texColor.rgb * brightness * ambientColor;
+    // 双通道光照：天空光受 ambientColor 色调影响，方块光（火把）不受影响
+    float skyBrightness   = pow(0.8, 15.0 - LightLevel);
+    float blockBrightness = pow(0.8, 15.0 - BlockLight);
+    vec3 litColor = texColor.rgb * max(skyBrightness * ambientColor, vec3(blockBrightness));
 
     // 雾化
     float fogFactor = smoothstep(viewRange.x, viewRange.y, FragDist);

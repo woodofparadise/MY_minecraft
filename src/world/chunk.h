@@ -63,9 +63,9 @@ class Chunk
         std::vector<Vertex> vertices;
         std::vector<Vertex> verticesT;              // 透明方块顶点数据
         std::vector<glm::vec3> transparentFaceCenters; // 每个透明面片的中心（chunk局部空间）
-        std::vector<short> blockLights;
+        std::vector<short> skyLights, blockLights;
 
-        // 一维索引：blockLights[i][j][k] → blockLights[lightIdx(i,j,k)]
+        // 一维索引：skyLights[i][j][k] → skyLights[lightIdx(i,j,k)]
         static inline int lightIdx(int i, int j, int k) {
             return i * (CHUNK_SIZE * CHUNK_HEIGHT) + j * CHUNK_HEIGHT + k;
         }
@@ -91,16 +91,24 @@ class Chunk
         BLOCK_TYPE get_neighbor_block(int i, int j, int k, int face,
             const Chunk* neighbours[4]) const;
 
-        // 获取相邻方块的光照等级（用于 mesh 生成时写入顶点属性）
+        // 获取相邻方块的天空光等级（用于 mesh 生成时写入顶点属性）
         float get_neighbor_light(int i, int j, int k, int face,
+            const Chunk* neighbours[4]) const;
+
+        // 获取相邻方块的方块光等级（火把等，用于 mesh 生成时写入顶点属性）
+        float get_neighbor_block_light(int i, int j, int k, int face,
             const Chunk* neighbours[4]) const;
 
         // 光照 BFS 的通用传播函数（阶段一和阶段二共用）
         void update_block_light(std::queue<glm::ivec3>& lightBFS);
 
-        // 增量光照更新（仅修改本区块 blockLights，不跨区块）
+        // 增量天空光更新（仅修改本区块 skyLights，不跨区块）
         void update_light_on_destroy(const glm::ivec3& pos);
         void update_light_on_create(const glm::ivec3& pos);
+
+        // 增量方块光更新（火把等发光方块，支持跨区块传播）
+        void update_light_on_create_luminous(const glm::ivec3& pos, BLOCK_TYPE blockType, Chunk* neighbours[4]);
+        void update_light_on_destory_luminous(const glm::ivec3& pos, Chunk* neighbours[4]);
 
         // 邻居边界增量光照移除（放置方块时替代 init_local_light）
         // side: 0=j=0(left), 1=j=max(right), 2=i=max(forward), 3=i=0(back)
@@ -163,7 +171,8 @@ class Chunk
 
         // 光照系统
         static bool is_valid_index(const glm::ivec3& index);
-        short get_block_light(const glm::ivec3& index) const;
+        short get_block_light(const glm::ivec3& index) const;      // 天空光查询
+        short get_torch_light(const glm::ivec3& index) const;      // 方块光查询（火把等）
         void init_local_light();                          // 阶段一：区块内部光照
         void update_chunk_light(const Chunk* neighbours[4]); // 阶段二：跨区块边界传播
 

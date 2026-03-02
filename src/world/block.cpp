@@ -109,3 +109,13 @@ int get_opacity(BLOCK_TYPE type)
     }
     return 16;
 }
+
+short get_block_luminous(BLOCK_TYPE blockType)
+{
+    switch(blockType)
+    {
+        case TORCH:    return 14;
+        default:     return -1;
+    }
+    return -1;
+}

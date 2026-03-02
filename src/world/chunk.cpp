@@ -101,6 +101,8 @@ void Chunk::upload_data()
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, Texcoord));
     glEnableVertexAttribArray(3);
     glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, LightLevel));
+    glEnableVertexAttribArray(4);
+    glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, BlockLight));
 }
 
 void Chunk::upload_data_transparent()
@@ -131,6 +133,8 @@ void Chunk::upload_data_transparent()
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, Texcoord));
     glEnableVertexAttribArray(3);
     glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, LightLevel));
+    glEnableVertexAttribArray(4);
+    glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, BlockLight));
 }
 
 Chunk::Chunk(PerlinNoise& perlinNoise, int x, int y)
@@ -140,8 +144,9 @@ Chunk::Chunk(PerlinNoise& perlinNoise, int x, int y)
     double step = 1.0f/CHUNK_SIZE;
     chunkBlocks.resize(CHUNK_SIZE);
     heightMap.resize(CHUNK_SIZE);
+    skyLights.resize(CHUNK_SIZE * CHUNK_SIZE * CHUNK_HEIGHT, 0);
     blockLights.resize(CHUNK_SIZE * CHUNK_SIZE * CHUNK_HEIGHT, 0);
-    
+
     // 基于二维柏林噪声生成随机地形
     for(int i = 0; i < CHUNK_SIZE; i++)
     {
@@ -291,23 +296,22 @@ void Chunk::update_data(const Chunk* neighbours[4])
                 if(blockType == TORCH)
                 {
                     glm::vec2 tex = sideTexCoords[TORCH];
-                    float light = (float)blockLights[lightIdx(i, j, k)];
+                    float light  = (float)skyLights[lightIdx(i, j, k)];
+                    float blight = (float)blockLights[lightIdx(i, j, k)];
 
                     // Quad A (╲ 对角): (0,*,1) ↔ (1,*,0)
-                    // 用 face 5 (Up) 法线，首顶点 = blockPos+(0,1,1) = faceVertexOffset[5][0]
-                    Vertex a0 = {blockPos + glm::vec3(0,1,1), faceNormal[5], tex, light};
-                    Vertex a1 = {blockPos + glm::vec3(1,1,0), faceNormal[5], tex + texRight, light};
-                    Vertex a2 = {blockPos + glm::vec3(0,0,1), faceNormal[5], tex + texDown, light};
-                    Vertex a3 = {blockPos + glm::vec3(1,0,0), faceNormal[5], tex + texRight + texDown, light};
+                    Vertex a0 = {blockPos + glm::vec3(0,1,1), faceNormal[5], tex,                    light, blight};
+                    Vertex a1 = {blockPos + glm::vec3(1,1,0), faceNormal[5], tex + texRight,         light, blight};
+                    Vertex a2 = {blockPos + glm::vec3(0,0,1), faceNormal[5], tex + texDown,          light, blight};
+                    Vertex a3 = {blockPos + glm::vec3(1,0,0), faceNormal[5], tex + texRight+texDown, light, blight};
                     create_face(a0, a1, a2, a3);        // 正面
                     create_face(a0, a2, a1, a3);        // 反面（翻转绕序）
 
                     // Quad B (╱ 对角): (1,*,1) ↔ (0,*,0)
-                    // 用 face 3 (Right) 法线，首顶点 = blockPos+(1,1,1) = faceVertexOffset[3][0]
-                    Vertex b0 = {blockPos + glm::vec3(1,1,1), faceNormal[3], tex, light};
-                    Vertex b1 = {blockPos + glm::vec3(0,1,0), faceNormal[3], tex + texRight, light};
-                    Vertex b2 = {blockPos + glm::vec3(1,0,1), faceNormal[3], tex + texDown, light};
-                    Vertex b3 = {blockPos + glm::vec3(0,0,0), faceNormal[3], tex + texRight + texDown, light};
+                    Vertex b0 = {blockPos + glm::vec3(1,1,1), faceNormal[3], tex,                    light, blight};
+                    Vertex b1 = {blockPos + glm::vec3(0,1,0), faceNormal[3], tex + texRight,         light, blight};
+                    Vertex b2 = {blockPos + glm::vec3(1,0,1), faceNormal[3], tex + texDown,          light, blight};
+                    Vertex b3 = {blockPos + glm::vec3(0,0,0), faceNormal[3], tex + texRight+texDown, light, blight};
                     create_face(b0, b1, b2, b3);        // 正面
                     create_face(b0, b2, b1, b3);        // 反面
 
@@ -326,12 +330,13 @@ void Chunk::update_data(const Chunk* neighbours[4])
                     if(neighborBlock == blockType) continue;
 
                     glm::vec2 tex = (face == 5) ? topTex : (face == 4) ? bottomTex : sideTex;
-                    float light = get_neighbor_light(i, j, k, face, neighbours);
+                    float light  = get_neighbor_light(i, j, k, face, neighbours);
+                    float blight = get_neighbor_block_light(i, j, k, face, neighbours);
 
-                    Vertex v1 = {blockPos + faceVertexOffset[face][0], faceNormal[face], tex, light};
-                    Vertex v2 = {blockPos + faceVertexOffset[face][1], faceNormal[face], tex + texRight, light};
-                    Vertex v3 = {blockPos + faceVertexOffset[face][2], faceNormal[face], tex + texDown, light};
-                    Vertex v4 = {blockPos + faceVertexOffset[face][3], faceNormal[face], tex + texRight + texDown, light};
+                    Vertex v1 = {blockPos + faceVertexOffset[face][0], faceNormal[face], tex,                    light, blight};
+                    Vertex v2 = {blockPos + faceVertexOffset[face][1], faceNormal[face], tex + texRight,         light, blight};
+                    Vertex v3 = {blockPos + faceVertexOffset[face][2], faceNormal[face], tex + texDown,          light, blight};
+                    Vertex v4 = {blockPos + faceVertexOffset[face][3], faceNormal[face], tex + texRight+texDown, light, blight};
 
                     if(is_border_face(i, j, face))
                     {
@@ -452,7 +457,7 @@ float Chunk::get_neighbor_light(
 
     if(ni >= 0 && ni < CHUNK_SIZE && nj >= 0 && nj < CHUNK_SIZE)
     {
-        return (float)blockLights[lightIdx(ni, nj, nk)];
+        return (float)skyLights[lightIdx(ni, nj, nk)];
     }
     // 跨区块访问：get_block_light 使用数组索引（无翻转）
     if(nj == CHUNK_SIZE && neighbours[1])
@@ -465,6 +470,36 @@ float Chunk::get_neighbor_light(
         return (float)neighbours[3]->get_block_light({CHUNK_SIZE-1, j, nk});
 
     return 15.0f;  // 邻居区块未加载，默认满亮度
+}
+
+// 获取相邻方块的方块光（火把等），逻辑同 get_neighbor_light，但读 blockLights
+float Chunk::get_neighbor_block_light(
+    int i, int j, int k,
+    int face,
+    const Chunk* neighbours[4]
+) const
+{
+    int ni = i - (int)faceNormal[face].z;
+    int nj = j + (int)faceNormal[face].x;
+    int nk = k + (int)faceNormal[face].y;
+
+    if(nk >= CHUNK_HEIGHT || nk < 0) return 0.0f;  // 方块光越界一律为 0
+
+    if(ni >= 0 && ni < CHUNK_SIZE && nj >= 0 && nj < CHUNK_SIZE)
+    {
+        return (float)blockLights[lightIdx(ni, nj, nk)];
+    }
+    // 跨区块访问
+    if(nj == CHUNK_SIZE && neighbours[1])
+        return (float)neighbours[1]->get_torch_light({i, 0, nk});
+    if(nj < 0 && neighbours[0])
+        return (float)neighbours[0]->get_torch_light({i, CHUNK_SIZE-1, nk});
+    if(ni == CHUNK_SIZE && neighbours[2])
+        return (float)neighbours[2]->get_torch_light({0, j, nk});
+    if(ni < 0 && neighbours[3])
+        return (float)neighbours[3]->get_torch_light({CHUNK_SIZE-1, j, nk});
+
+    return 0.0f;  // 邻居区块未加载，方块光默认为 0
 }
 
 void Chunk::sort_transparent_faces(const glm::vec3& localCameraPos)
@@ -513,9 +548,14 @@ bool Chunk::set_block(int x, int y, int z, BLOCK_TYPE blockType, Chunk* neighbou
     // 标记自身：完整重建 mesh + 增量光照更新
     meshUpdate = std::max(meshUpdate, MESH_FULL_REBUILD);
     bool isDestroy = (blockType == AIR && oldType != AIR);
-    // 火把光照反转：放置火把 → 光照上升路径，破坏火把 → 光照下降路径
-    if(blockType == TORCH) isDestroy = true;
-    if(oldType == TORCH && blockType == AIR) isDestroy = false;
+
+    // 方块光通道：发光方块（火把等）的放置/破坏
+    if(get_block_luminous(oldType) > 0)
+        update_light_on_destory_luminous({i, j, z}, neighbours);
+    if(get_block_luminous(blockType) > 0)
+        update_light_on_create_luminous({i, j, z}, blockType, neighbours);
+
+    // 天空光通道：所有方块变化都需要更新
     pendingLightUpdates.push_back({{i, j, z}, isDestroy});
     lightUpdate = std::max(lightUpdate, PROPAGATE);
 
@@ -533,26 +573,26 @@ bool Chunk::set_block(int x, int y, int z, BLOCK_TYPE blockType, Chunk* neighbou
     // 破坏：边界光照只会增加 → PROPAGATE（update_chunk_light 处理）
     // 放置：边界光照可能降低 → PROPAGATE + 边界增量移除（替代 FULL_RESET）
     // 邻居朝向映射: [0]left→side1, [1]right→side0, [2]forward→side3, [3]back→side2
-    if(j < 15 && neighbours[0])
-    {
-        neighbours[0]->lightUpdate = std::max(neighbours[0]->lightUpdate, PROPAGATE);
-        if(!isDestroy) neighbours[0]->pendingBoundaryRemoval[1] = true;
-    }
-    if(j >= CHUNK_SIZE-15 && neighbours[1])
-    {
-        neighbours[1]->lightUpdate = std::max(neighbours[1]->lightUpdate, PROPAGATE);
-        if(!isDestroy) neighbours[1]->pendingBoundaryRemoval[0] = true;
-    }
-    if(i >= CHUNK_SIZE-15 && neighbours[2])
-    {
-        neighbours[2]->lightUpdate = std::max(neighbours[2]->lightUpdate, PROPAGATE);
-        if(!isDestroy) neighbours[2]->pendingBoundaryRemoval[3] = true;
-    }
-    if(i < 15 && neighbours[3])
-    {
-        neighbours[3]->lightUpdate = std::max(neighbours[3]->lightUpdate, PROPAGATE);
-        if(!isDestroy) neighbours[3]->pendingBoundaryRemoval[2] = true;
-    }
+    // if(j < 15 && neighbours[0])
+    // {
+    //     neighbours[0]->lightUpdate = std::max(neighbours[0]->lightUpdate, PROPAGATE);
+    //     if(!isDestroy) neighbours[0]->pendingBoundaryRemoval[1] = true;
+    // }
+    // if(j >= CHUNK_SIZE-15 && neighbours[1])
+    // {
+    //     neighbours[1]->lightUpdate = std::max(neighbours[1]->lightUpdate, PROPAGATE);
+    //     if(!isDestroy) neighbours[1]->pendingBoundaryRemoval[0] = true;
+    // }
+    // if(i >= CHUNK_SIZE-15 && neighbours[2])
+    // {
+    //     neighbours[2]->lightUpdate = std::max(neighbours[2]->lightUpdate, PROPAGATE);
+    //     if(!isDestroy) neighbours[2]->pendingBoundaryRemoval[3] = true;
+    // }
+    // if(i < 15 && neighbours[3])
+    // {
+    //     neighbours[3]->lightUpdate = std::max(neighbours[3]->lightUpdate, PROPAGATE);
+    //     if(!isDestroy) neighbours[3]->pendingBoundaryRemoval[2] = true;
+    // }
 
     return true;
 }
@@ -605,6 +645,7 @@ double Chunk::generate_height(PerlinNoise& perlinNoise, double worldX, double wo
 Chunk::Chunk(Chunk&& other) noexcept
       : chunkBlocks(std::move(other.chunkBlocks)),
         heightMap(std::move(other.heightMap)),
+        skyLights(std::move(other.skyLights)),
         blockLights(std::move(other.blockLights)),
         vertices(std::move(other.vertices)),
         verticesT(std::move(other.verticesT)),
@@ -656,6 +697,7 @@ Chunk& Chunk::operator=(Chunk&& other) noexcept
         // 窃取源对象资源
         chunkBlocks = std::move(other.chunkBlocks);
         heightMap = std::move(other.heightMap);
+        skyLights = std::move(other.skyLights);
         blockLights = std::move(other.blockLights);
         vertices = std::move(other.vertices);
         verticesT = std::move(other.verticesT);
@@ -707,13 +749,22 @@ short Chunk::get_block_light(const glm::ivec3& index) const
     {
         return 0;
     }
+    return skyLights[lightIdx(index.x, index.y, index.z)];
+}
+
+short Chunk::get_torch_light(const glm::ivec3& index) const
+{
+    if(!is_valid_index(index))
+    {
+        return 0;
+    }
     return blockLights[lightIdx(index.x, index.y, index.z)];
 }
 
 void Chunk::init_local_light()
 {
     // 重置所有光照值为0
-    std::fill(blockLights.begin(), blockLights.end(), (short)0);
+    std::fill(skyLights.begin(), skyLights.end(), (short)0);
 
     std::queue<glm::ivec3 > lightBFS;
     for(int i = 0; i < CHUNK_SIZE; ++i)
@@ -726,7 +777,7 @@ void Chunk::init_local_light()
                 {
                     break;
                 }
-                blockLights[lightIdx(i, j, k)] = 15;
+                skyLights[lightIdx(i, j, k)] = 15;
                 lightBFS.push(glm::ivec3(i, j, k));
             }
         }
@@ -748,17 +799,17 @@ void Chunk::update_block_light(std::queue<glm::ivec3 >& lightBFS)
             {
                 continue;
             }
-            else if(blockLights[lightIdx(temp.x, temp.y, temp.z)] >= blockLights[lightIdx(local.x, local.y, local.z)])
+            else if(skyLights[lightIdx(temp.x, temp.y, temp.z)] >= skyLights[lightIdx(local.x, local.y, local.z)])
             {
                 continue;
             }
             int dec = get_opacity(chunkBlocks[temp.x][temp.y][temp.z]);
-            if(blockLights[lightIdx(local.x, local.y, local.z)] - dec <= 0)
+            if(skyLights[lightIdx(local.x, local.y, local.z)] - dec <= 0)
             {
-                blockLights[lightIdx(temp.x, temp.y, temp.z)] = 0;
+                skyLights[lightIdx(temp.x, temp.y, temp.z)] = 0;
                 continue;
             }
-            blockLights[lightIdx(temp.x, temp.y, temp.z)] = blockLights[lightIdx(local.x, local.y, local.z)] - dec;
+            skyLights[lightIdx(temp.x, temp.y, temp.z)] = skyLights[lightIdx(local.x, local.y, local.z)] - dec;
             lightBFS.push(temp);
         }
     }
@@ -779,16 +830,16 @@ void Chunk::update_chunk_light(const Chunk* neighbours[4])
         {
             // j=0 侧 ← left
             int newLight = neighbours[0]->get_block_light({i, CHUNK_SIZE-1, k}) - get_opacity(chunkBlocks[i][0][k]);
-            if(newLight > blockLights[lightIdx(i, 0, k)])
+            if(newLight > skyLights[lightIdx(i, 0, k)])
             {
-                blockLights[lightIdx(i, 0, k)] = newLight;
+                skyLights[lightIdx(i, 0, k)] = newLight;
                 lightBFS.push({i, 0, k});
             }
             // j=max 侧 ← right
             newLight = neighbours[1]->get_block_light({i, 0, k}) - get_opacity(chunkBlocks[i][CHUNK_SIZE-1][k]);
-            if(newLight > blockLights[lightIdx(i, CHUNK_SIZE-1, k)])
+            if(newLight > skyLights[lightIdx(i, CHUNK_SIZE-1, k)])
             {
-                blockLights[lightIdx(i, CHUNK_SIZE-1, k)] = newLight;
+                skyLights[lightIdx(i, CHUNK_SIZE-1, k)] = newLight;
                 lightBFS.push({i, CHUNK_SIZE-1, k});
             }
         }
@@ -801,16 +852,16 @@ void Chunk::update_chunk_light(const Chunk* neighbours[4])
         {
             // i=max 侧 ← forward
             int newLight = neighbours[2]->get_block_light({0, j, k}) - get_opacity(chunkBlocks[CHUNK_SIZE-1][j][k]);
-            if(newLight > blockLights[lightIdx(CHUNK_SIZE-1, j, k)])
+            if(newLight > skyLights[lightIdx(CHUNK_SIZE-1, j, k)])
             {
-                blockLights[lightIdx(CHUNK_SIZE-1, j, k)] = newLight;
+                skyLights[lightIdx(CHUNK_SIZE-1, j, k)] = newLight;
                 lightBFS.push({CHUNK_SIZE-1, j, k});
             }
             // i=0 侧 ← back
             newLight = neighbours[3]->get_block_light({CHUNK_SIZE-1, j, k}) - get_opacity(chunkBlocks[0][j][k]);
-            if(newLight > blockLights[lightIdx(0, j, k)])
+            if(newLight > skyLights[lightIdx(0, j, k)])
             {
-                blockLights[lightIdx(0, j, k)] = newLight;
+                skyLights[lightIdx(0, j, k)] = newLight;
                 lightBFS.push({0, j, k});
             }
         }
@@ -882,12 +933,13 @@ void Chunk::refresh_border_mesh(const Chunk* neighbours[4])
         glm::vec2 tex = (face == 5) ? topTexCoords[blockType]
                        : (face == 4) ? bottomTexCoords[blockType]
                        : sideTexCoords[blockType];
-        float light = get_neighbor_light(i, j, k, face, neighbours);
+        float light  = get_neighbor_light(i, j, k, face, neighbours);
+        float blight = get_neighbor_block_light(i, j, k, face, neighbours);
 
-        Vertex v1 = {blockPos + faceVertexOffset[face][0], faceNormal[face], tex, light};
-        Vertex v2 = {blockPos + faceVertexOffset[face][1], faceNormal[face], tex + texRight, light};
-        Vertex v3 = {blockPos + faceVertexOffset[face][2], faceNormal[face], tex + texDown, light};
-        Vertex v4 = {blockPos + faceVertexOffset[face][3], faceNormal[face], tex + texRight + texDown, light};
+        Vertex v1 = {blockPos + faceVertexOffset[face][0], faceNormal[face], tex,                    light, blight};
+        Vertex v2 = {blockPos + faceVertexOffset[face][1], faceNormal[face], tex + texRight,         light, blight};
+        Vertex v3 = {blockPos + faceVertexOffset[face][2], faceNormal[face], tex + texDown,          light, blight};
+        Vertex v4 = {blockPos + faceVertexOffset[face][3], faceNormal[face], tex + texRight+texDown, light, blight};
         if(is_translucent(blockType))
             create_face_transparent(v1, v2, v3, v4);
         else
@@ -931,15 +983,22 @@ void Chunk::refresh_vertex_lights(const Chunk* neighbours[4])
         int i = CHUNK_SIZE - 1 - (int)blockPos.z;
         int j = (int)blockPos.x;
         int k = (int)blockPos.y;
-        float light;
-        if(is_valid_index({i, j, k}) && chunkBlocks[i][j][k] == TORCH)
-            light = (float)blockLights[lightIdx(i, j, k)];
+        float light, blight;
+        if(is_valid_index({i, j, k}) && get_block_luminous(chunkBlocks[i][j][k]) > 0)
+        {
+            // 发光方块自身：直接读取所在位置的光照
+            light  = (float)skyLights[lightIdx(i, j, k)];
+            blight = (float)blockLights[lightIdx(i, j, k)];
+        }
         else
-            light = get_neighbor_light(i, j, k, face, neighbours);
-        vertices[v].LightLevel = light;
-        vertices[v+1].LightLevel = light;
-        vertices[v+2].LightLevel = light;
-        vertices[v+3].LightLevel = light;
+        {
+            light  = get_neighbor_light(i, j, k, face, neighbours);
+            blight = get_neighbor_block_light(i, j, k, face, neighbours);
+        }
+        vertices[v].LightLevel   = light;  vertices[v].BlockLight   = blight;
+        vertices[v+1].LightLevel = light;  vertices[v+1].BlockLight = blight;
+        vertices[v+2].LightLevel = light;  vertices[v+2].BlockLight = blight;
+        vertices[v+3].LightLevel = light;  vertices[v+3].BlockLight = blight;
     }
     for(size_t v = 0; v + 3 < verticesT.size(); v += 4)
     {
@@ -948,11 +1007,12 @@ void Chunk::refresh_vertex_lights(const Chunk* neighbours[4])
         int i = CHUNK_SIZE - 1 - (int)blockPos.z;
         int j = (int)blockPos.x;
         int k = (int)blockPos.y;
-        float light = get_neighbor_light(i, j, k, face, neighbours);
-        verticesT[v].LightLevel = light;
-        verticesT[v+1].LightLevel = light;
-        verticesT[v+2].LightLevel = light;
-        verticesT[v+3].LightLevel = light;
+        float light  = get_neighbor_light(i, j, k, face, neighbours);
+        float blight = get_neighbor_block_light(i, j, k, face, neighbours);
+        verticesT[v].LightLevel   = light;  verticesT[v].BlockLight   = blight;
+        verticesT[v+1].LightLevel = light;  verticesT[v+1].BlockLight = blight;
+        verticesT[v+2].LightLevel = light;  verticesT[v+2].BlockLight = blight;
+        verticesT[v+3].LightLevel = light;  verticesT[v+3].BlockLight = blight;
     }
 
     // 仅重传 VBO 数据（几何不变，VAO/EBO 不动）
@@ -1013,7 +1073,7 @@ void Chunk::update_light_on_destroy(const glm::ivec3& pos)
     // 检查是否有天空光直射：上方为世界顶部或天空光柱 (light=15 的 AIR)
     bool hasSkyAbove = (pos.z + 1 >= CHUNK_HEIGHT) ||
                        (chunkBlocks[pos.x][pos.y][pos.z + 1] == AIR &&
-                        blockLights[lightIdx(pos.x, pos.y, pos.z + 1)] == 15);
+                        skyLights[lightIdx(pos.x, pos.y, pos.z + 1)] == 15);
 
     if(hasSkyAbove)
     {
@@ -1021,7 +1081,7 @@ void Chunk::update_light_on_destroy(const glm::ivec3& pos)
         for(int k = pos.z; k >= 0; k--)
         {
             if(chunkBlocks[pos.x][pos.y][k] != AIR) break;
-            blockLights[lightIdx(pos.x, pos.y, k)] = 15;
+            skyLights[lightIdx(pos.x, pos.y, k)] = 15;
             lightBFS.push({pos.x, pos.y, k});
         }
     }
@@ -1033,23 +1093,23 @@ void Chunk::update_light_on_destroy(const glm::ivec3& pos)
         {
             glm::ivec3 nb = pos + arrayOffset[d];
             if(!is_valid_index(nb)) continue;
-            maxLight = std::max(maxLight, blockLights[lightIdx(nb.x, nb.y, nb.z)]);
+            maxLight = std::max(maxLight, skyLights[lightIdx(nb.x, nb.y, nb.z)]);
         }
         short newLight = maxLight - (short)get_opacity(chunkBlocks[pos.x][pos.y][pos.z]);
         if(newLight > 0)
         {
-            blockLights[lightIdx(pos.x, pos.y, pos.z)] = newLight;
+            skyLights[lightIdx(pos.x, pos.y, pos.z)] = newLight;
             lightBFS.push(pos);
         }
     }
 
-    // 火把光源播种：光照等级 14
-    if(chunkBlocks[pos.x][pos.y][pos.z] == TORCH)
-    {
-        blockLights[lightIdx(pos.x, pos.y, pos.z)] = std::max(
-            blockLights[lightIdx(pos.x, pos.y, pos.z)], (short)14);
-        lightBFS.push(pos);
-    }
+    // // 火把光源播种：光照等级 14
+    // if(chunkBlocks[pos.x][pos.y][pos.z] == TORCH)
+    // {
+    //     skyLights[lightIdx(pos.x, pos.y, pos.z)] = std::max(
+    //         skyLights[lightIdx(pos.x, pos.y, pos.z)], (short)14);
+    //     lightBFS.push(pos);
+    // }
 
     update_block_light(lightBFS);
 }
@@ -1057,8 +1117,8 @@ void Chunk::update_light_on_destroy(const glm::ivec3& pos)
 void Chunk::update_light_on_create(const glm::ivec3& pos)
 {
     // 放置方块后，需要移除该位置原有的光照并重新传播
-    short oldLight = blockLights[lightIdx(pos.x, pos.y, pos.z)];
-    blockLights[lightIdx(pos.x, pos.y, pos.z)] = 0;
+    short oldLight = skyLights[lightIdx(pos.x, pos.y, pos.z)];
+    skyLights[lightIdx(pos.x, pos.y, pos.z)] = 0;
     if(oldLight <= 0) return;
 
     // 光照移除 BFS：记录 {位置, 旧光照值}
@@ -1067,15 +1127,14 @@ void Chunk::update_light_on_create(const glm::ivec3& pos)
 
     removalQueue.push({pos, oldLight});
 
-    // 如果该位置原为天空光柱 (light=15)，且放置了实心方块，向下截断光柱
-    // 注意：pos 为 AIR 时（如破坏火把）不截断，天空光柱应保持完整
-    if(oldLight == 15 && chunkBlocks[pos.x][pos.y][pos.z] != AIR)
+    // 如果该位置原为天空光柱 (light=15)，向下截断光柱
+    if(oldLight == 15)
     {
         for(int k = pos.z - 1; k >= 0; k--)
         {
             if(chunkBlocks[pos.x][pos.y][k] != AIR) break;
-            if(blockLights[lightIdx(pos.x, pos.y, k)] != 15) break;
-            blockLights[lightIdx(pos.x, pos.y, k)] = 0;
+            if(skyLights[lightIdx(pos.x, pos.y, k)] != 15) break;
+            skyLights[lightIdx(pos.x, pos.y, k)] = 0;
             removalQueue.push({{pos.x, pos.y, k}, 15});
         }
     }
@@ -1091,13 +1150,13 @@ void Chunk::update_light_on_create(const glm::ivec3& pos)
             glm::ivec3 nb = cur + arrayOffset[d];
             if(!is_valid_index(nb)) continue;
 
-            short nbLight = blockLights[lightIdx(nb.x, nb.y, nb.z)];
+            short nbLight = skyLights[lightIdx(nb.x, nb.y, nb.z)];
             if(nbLight <= 0) continue;
 
             if(nbLight < curLight)
             {
                 // 该邻居的光照源自当前方块，清零并继续移除
-                blockLights[lightIdx(nb.x, nb.y, nb.z)] = 0;
+                skyLights[lightIdx(nb.x, nb.y, nb.z)] = 0;
                 removalQueue.push({nb, nbLight});
             }
             else
@@ -1109,21 +1168,21 @@ void Chunk::update_light_on_create(const glm::ivec3& pos)
     }
 
     // 移除 BFS 结束后，如果 pos 现在是 AIR（如破坏火把），恢复天空光柱
-    if(chunkBlocks[pos.x][pos.y][pos.z] == AIR)
-    {
-        bool hasSkyAbove = (pos.z + 1 >= CHUNK_HEIGHT) ||
-                           (chunkBlocks[pos.x][pos.y][pos.z + 1] == AIR &&
-                            blockLights[lightIdx(pos.x, pos.y, pos.z + 1)] == 15);
-        if(hasSkyAbove)
-        {
-            for(int k = pos.z; k >= 0; k--)
-            {
-                if(chunkBlocks[pos.x][pos.y][k] != AIR) break;
-                blockLights[lightIdx(pos.x, pos.y, k)] = 15;
-                repropQueue.push({pos.x, pos.y, k});
-            }
-        }
-    }
+    // if(chunkBlocks[pos.x][pos.y][pos.z] == AIR)
+    // {
+    //     bool hasSkyAbove = (pos.z + 1 >= CHUNK_HEIGHT) ||
+    //                        (chunkBlocks[pos.x][pos.y][pos.z + 1] == AIR &&
+    //                         skyLights[lightIdx(pos.x, pos.y, pos.z + 1)] == 15);
+    //     if(hasSkyAbove)
+    //     {
+    //         for(int k = pos.z; k >= 0; k--)
+    //         {
+    //             if(chunkBlocks[pos.x][pos.y][k] != AIR) break;
+    //             skyLights[lightIdx(pos.x, pos.y, k)] = 15;
+    //             repropQueue.push({pos.x, pos.y, k});
+    //         }
+    //     }
+    // }
 
     // 从边界种子重新传播光照
     update_block_light(repropQueue);
@@ -1144,10 +1203,10 @@ void Chunk::remove_boundary_light(int side)
     // 用 lambda 统一处理单个格子：记录旧值并加入移除队列
     auto zero_cell = [&](int i, int j, int k)
     {
-        short old = blockLights[lightIdx(i, j, k)];
+        short old = skyLights[lightIdx(i, j, k)];
         if(old > 0)
         {
-            blockLights[lightIdx(i, j, k)] = 0;
+            skyLights[lightIdx(i, j, k)] = 0;
             removalQueue.push({{i, j, k}, old});
         }
     };
@@ -1189,12 +1248,12 @@ void Chunk::remove_boundary_light(int side)
             glm::ivec3 nb = cur + arrayOffset[d];
             if(!is_valid_index(nb)) continue;
 
-            short nbLight = blockLights[lightIdx(nb.x, nb.y, nb.z)];
+            short nbLight = skyLights[lightIdx(nb.x, nb.y, nb.z)];
             if(nbLight <= 0) continue;
 
             if(nbLight < curLight)
             {
-                blockLights[lightIdx(nb.x, nb.y, nb.z)] = 0;
+                skyLights[lightIdx(nb.x, nb.y, nb.z)] = 0;
                 removalQueue.push({nb, nbLight});
             }
             else
@@ -1212,9 +1271,9 @@ void Chunk::remove_boundary_light(int side)
         for(int k = CHUNK_HEIGHT - 1; k >= 0; k--)
         {
             if(chunkBlocks[i][j][k] != AIR) break;
-            if(blockLights[lightIdx(i, j, k)] == 0)
+            if(skyLights[lightIdx(i, j, k)] == 0)
             {
-                blockLights[lightIdx(i, j, k)] = 15;
+                skyLights[lightIdx(i, j, k)] = 15;
                 repropQueue.push({i, j, k});
             }
         }
@@ -1235,3 +1294,275 @@ void Chunk::remove_boundary_light(int side)
     update_block_light(repropQueue);
 }
 
+// 将越界的数组索引转换为邻居区块编号和局部坐标
+// neighbours: [0]=left(j-), [1]=right(j+), [2]=forward(i+), [3]=back(i-)
+// 返回邻居编号 [0..3]，-1 表示超出世界高度范围
+static int resolve_cross_chunk(const glm::ivec3& pos, glm::ivec3& nbPos)
+{
+    if(pos.z < 0 || pos.z >= CHUNK_HEIGHT) return -1;
+    if(pos.x >= CHUNK_SIZE) { nbPos = {0,              pos.y, pos.z}; return 2; }
+    if(pos.x < 0)           { nbPos = {CHUNK_SIZE - 1, pos.y, pos.z}; return 3; }
+    if(pos.y >= CHUNK_SIZE) { nbPos = {pos.x, 0,              pos.z}; return 1; }
+    if(pos.y < 0)           { nbPos = {pos.x, CHUNK_SIZE - 1, pos.z}; return 0; }
+    return -1;
+}
+
+void Chunk::update_light_on_create_luminous(const glm::ivec3& pos, BLOCK_TYPE blockType, Chunk* neighbours[4])
+{
+    // 放置发光方块后，以该位置为光源向外传播 blockLights。
+    // 传播可跨越区块边界：本区块 BFS 遇到边界时直接写入邻居的 blockLights，
+    // 再在邻居区块内继续传播。火把光最远 14 格，CHUNK_SIZE=32，不会越过邻居的另一侧边界。
+
+    short luminousLevel = get_block_luminous(blockType);
+    if(blockLights[lightIdx(pos.x, pos.y, pos.z)] >= luminousLevel)
+        return;
+
+    blockLights[lightIdx(pos.x, pos.y, pos.z)] = luminousLevel;
+
+    std::queue<glm::ivec3> lightBFS;
+    lightBFS.push(pos);
+
+    // 邻居区块的待传播种子队列
+    std::queue<glm::ivec3> nbSeeds[4];
+
+    // === 阶段一：本区块内 BFS 传播，遇到边界时播种到邻居 ===
+    while(!lightBFS.empty())
+    {
+        glm::ivec3 local = lightBFS.front();
+        lightBFS.pop();
+        short localLight = blockLights[lightIdx(local.x, local.y, local.z)];
+
+        for(int d = 0; d < 6; ++d)
+        {
+            glm::ivec3 temp = local + arrayOffset[d];
+
+            if(is_valid_index(temp))
+            {
+                if(blockLights[lightIdx(temp.x, temp.y, temp.z)] >= localLight)
+                    continue;
+                int dec = get_opacity(chunkBlocks[temp.x][temp.y][temp.z]);
+                short newLight = localLight - dec;
+                if(newLight <= 0) continue;
+                blockLights[lightIdx(temp.x, temp.y, temp.z)] = newLight;
+                lightBFS.push(temp);
+            }
+            else
+            {
+                // 跨区块：直接写入邻居的 blockLights 并收集种子
+                glm::ivec3 nbPos;
+                int nbIdx = resolve_cross_chunk(temp, nbPos);
+                if(nbIdx < 0 || !neighbours[nbIdx]) continue;
+
+                Chunk* nb = neighbours[nbIdx];
+                int dec = get_opacity(nb->chunkBlocks[nbPos.x][nbPos.y][nbPos.z]);
+                short newLight = localLight - dec;
+                if(newLight <= 0) continue;
+                if(newLight <= nb->blockLights[lightIdx(nbPos.x, nbPos.y, nbPos.z)]) continue;
+
+                nb->blockLights[lightIdx(nbPos.x, nbPos.y, nbPos.z)] = newLight;
+                nbSeeds[nbIdx].push(nbPos);
+            }
+        }
+    }
+
+    // === 阶段二：在每个受影响的邻居区块内继续 BFS 传播 ===
+    for(int n = 0; n < 4; n++)
+    {
+        if(nbSeeds[n].empty() || !neighbours[n]) continue;
+        Chunk* nb = neighbours[n];
+
+        while(!nbSeeds[n].empty())
+        {
+            glm::ivec3 local = nbSeeds[n].front();
+            nbSeeds[n].pop();
+            short localLight = nb->blockLights[lightIdx(local.x, local.y, local.z)];
+
+            for(int d = 0; d < 6; ++d)
+            {
+                glm::ivec3 temp = local + arrayOffset[d];
+                if(!is_valid_index(temp)) continue; // 不会越过邻居的另一侧边界
+                if(nb->blockLights[lightIdx(temp.x, temp.y, temp.z)] >= localLight)
+                    continue;
+                int dec = get_opacity(nb->chunkBlocks[temp.x][temp.y][temp.z]);
+                short newLight = localLight - dec;
+                if(newLight <= 0) continue;
+                nb->blockLights[lightIdx(temp.x, temp.y, temp.z)] = newLight;
+                nbSeeds[n].push(temp);
+            }
+        }
+
+        // 标记邻居需要刷新顶点光照
+        nb->lightUpdate = std::max(nb->lightUpdate, VERTEX_ONLY);
+    }
+}
+
+void Chunk::update_light_on_destory_luminous(const glm::ivec3& pos, Chunk* neighbours[4])
+{
+    // 破坏发光方块后，该位置已变为 AIR，光源消失。
+    // 需要移除从该光源传播出去的 blockLight（包括跨区块部分），再让其他独立光源重新填充。
+    // 分四个阶段：本区块移除 → 邻居移除 → 本区块重传播 → 邻居重传播。
+
+    short oldLight = blockLights[lightIdx(pos.x, pos.y, pos.z)];
+    blockLights[lightIdx(pos.x, pos.y, pos.z)] = 0;
+    if(oldLight <= 0) return;
+
+    std::queue<std::pair<glm::ivec3, short>> removalQueue;
+    std::queue<glm::ivec3> repropQueue;
+
+    // 邻居区块的移除队列和重传播种子
+    std::queue<std::pair<glm::ivec3, short>> nbRemoval[4];
+    std::queue<glm::ivec3> nbReprop[4];
+
+    removalQueue.push({pos, oldLight});
+
+    // === 阶段一：本区块内移除 BFS，遇到边界时操作邻居 ===
+    while(!removalQueue.empty())
+    {
+        auto [cur, curLight] = removalQueue.front();
+        removalQueue.pop();
+
+        for(int d = 0; d < 6; d++)
+        {
+            glm::ivec3 temp = cur + arrayOffset[d];
+
+            if(is_valid_index(temp))
+            {
+                short tLight = blockLights[lightIdx(temp.x, temp.y, temp.z)];
+                if(tLight <= 0) continue;
+                if(tLight < curLight)
+                {
+                    // 依赖于当前光源，清零并继续移除
+                    blockLights[lightIdx(temp.x, temp.y, temp.z)] = 0;
+                    removalQueue.push({temp, tLight});
+                }
+                else
+                {
+                    // 独立光源，作为重传播种子
+                    repropQueue.push(temp);
+                }
+            }
+            else
+            {
+                // 跨区块移除
+                glm::ivec3 nbPos;
+                int nbIdx = resolve_cross_chunk(temp, nbPos);
+                if(nbIdx < 0 || !neighbours[nbIdx]) continue;
+
+                Chunk* nb = neighbours[nbIdx];
+                short nLight = nb->blockLights[lightIdx(nbPos.x, nbPos.y, nbPos.z)];
+                if(nLight <= 0) continue;
+                if(nLight < curLight)
+                {
+                    nb->blockLights[lightIdx(nbPos.x, nbPos.y, nbPos.z)] = 0;
+                    nbRemoval[nbIdx].push({nbPos, nLight});
+                }
+                else
+                {
+                    nbReprop[nbIdx].push(nbPos);
+                }
+            }
+        }
+    }
+
+    // === 阶段二：在每个受影响的邻居区块内继续移除 BFS ===
+    for(int n = 0; n < 4; n++)
+    {
+        if(nbRemoval[n].empty()) continue;
+        if(!neighbours[n]) continue;
+        Chunk* nb = neighbours[n];
+
+        while(!nbRemoval[n].empty())
+        {
+            auto [cur, curLight] = nbRemoval[n].front();
+            nbRemoval[n].pop();
+
+            for(int d = 0; d < 6; d++)
+            {
+                glm::ivec3 temp = cur + arrayOffset[d];
+                if(!is_valid_index(temp)) continue; // 不越过邻居的另一侧边界
+
+                short tLight = nb->blockLights[lightIdx(temp.x, temp.y, temp.z)];
+                if(tLight <= 0) continue;
+                if(tLight < curLight)
+                {
+                    nb->blockLights[lightIdx(temp.x, temp.y, temp.z)] = 0;
+                    nbRemoval[n].push({temp, tLight});
+                }
+                else
+                {
+                    nbReprop[n].push(temp);
+                }
+            }
+        }
+    }
+
+    // === 阶段三：本区块内重传播 BFS，遇到边界时播种到邻居 ===
+    while(!repropQueue.empty())
+    {
+        glm::ivec3 local = repropQueue.front();
+        repropQueue.pop();
+        short localLight = blockLights[lightIdx(local.x, local.y, local.z)];
+
+        for(int d = 0; d < 6; ++d)
+        {
+            glm::ivec3 temp = local + arrayOffset[d];
+
+            if(is_valid_index(temp))
+            {
+                if(blockLights[lightIdx(temp.x, temp.y, temp.z)] >= localLight)
+                    continue;
+                int dec = get_opacity(chunkBlocks[temp.x][temp.y][temp.z]);
+                short newLight = localLight - dec;
+                if(newLight <= 0) continue;
+                blockLights[lightIdx(temp.x, temp.y, temp.z)] = newLight;
+                repropQueue.push(temp);
+            }
+            else
+            {
+                // 跨区块重传播
+                glm::ivec3 nbPos;
+                int nbIdx = resolve_cross_chunk(temp, nbPos);
+                if(nbIdx < 0 || !neighbours[nbIdx]) continue;
+
+                Chunk* nb = neighbours[nbIdx];
+                int dec = get_opacity(nb->chunkBlocks[nbPos.x][nbPos.y][nbPos.z]);
+                short newLight = localLight - dec;
+                if(newLight <= 0) continue;
+                if(newLight <= nb->blockLights[lightIdx(nbPos.x, nbPos.y, nbPos.z)])
+                    continue;
+                nb->blockLights[lightIdx(nbPos.x, nbPos.y, nbPos.z)] = newLight;
+                nbReprop[nbIdx].push(nbPos);
+            }
+        }
+    }
+
+    // === 阶段四：在每个受影响的邻居区块内继续重传播 ===
+    for(int n = 0; n < 4; n++)
+    {
+        if(nbReprop[n].empty()) continue;
+        if(!neighbours[n]) continue;
+        Chunk* nb = neighbours[n];
+
+        while(!nbReprop[n].empty())
+        {
+            glm::ivec3 local = nbReprop[n].front();
+            nbReprop[n].pop();
+            short localLight = nb->blockLights[lightIdx(local.x, local.y, local.z)];
+
+            for(int d = 0; d < 6; ++d)
+            {
+                glm::ivec3 temp = local + arrayOffset[d];
+                if(!is_valid_index(temp)) continue;
+                if(nb->blockLights[lightIdx(temp.x, temp.y, temp.z)] >= localLight)
+                    continue;
+                int dec = get_opacity(nb->chunkBlocks[temp.x][temp.y][temp.z]);
+                short newLight = localLight - dec;
+                if(newLight <= 0) continue;
+                nb->blockLights[lightIdx(temp.x, temp.y, temp.z)] = newLight;
+                nbReprop[n].push(temp);
+            }
+        }
+
+        nb->lightUpdate = std::max(nb->lightUpdate, VERTEX_ONLY);
+    }
+}
