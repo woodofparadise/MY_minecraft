@@ -44,6 +44,23 @@ glm::vec3 SkyBox::getZenithColor() const
     return lerpKeyframes(timeOfDay, times, colors, sizeof(times) / sizeof(times[0]));
 }
 
+glm::vec3 SkyBox::getAmbientColor() const
+{
+    static const float times[] =      { 0.0f,  0.20f, 0.25f, 0.30f, 0.50f, 0.70f, 0.75f, 0.80f, 1.0f };
+    static const glm::vec3 colors[] = {
+        {0.15f, 0.15f, 0.25f},  // 午夜：冷蓝调
+        {0.15f, 0.15f, 0.25f},  // 拂晓前
+        {1.00f, 0.70f, 0.50f},  // 日出：暖色
+        {1.00f, 1.00f, 1.00f},  // 清晨：无色偏
+        {1.00f, 1.00f, 1.00f},  // 正午：无色偏
+        {1.00f, 1.00f, 1.00f},  // 下午：无色偏
+        {1.00f, 0.60f, 0.40f},  // 日落：暖橙色
+        {0.20f, 0.20f, 0.35f},  // 暮色：转冷
+        {0.15f, 0.15f, 0.25f},  // 午夜（循环闭合）
+    };
+    return lerpKeyframes(timeOfDay, times, colors, sizeof(times) / sizeof(times[0]));
+}
+
 void SkyBox::init()
 {
     // 全屏四边形，覆盖 NDC [-1,1]×[-1,1]，两个三角形

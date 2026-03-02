@@ -130,8 +130,10 @@ void Game::game_loop()
         blockShader.set_mat4("view", view);
         blockShader.set_mat4("projection", projection);
         blockShader.set_vec3("viewPos", player.camera.cameraPos);
-        blockShader.set_vec2("viewRange", {CHUNK_SIZE, CHUNK_SIZE*2});   // 视距
+        blockShader.set_vec2("viewRange", {CHUNK_SIZE*1.5f, CHUNK_SIZE*2});   // 视距
         blockShader.set_vec3("skyColor", skyColor);
+        glm::vec3 ambientColor = skyBox.getAmbientColor();
+        blockShader.set_vec3("ambientColor", ambientColor);
         terrain.draw_terrain(blockShader, vpMatrix, player.camera.cameraPos); // 绘制地形（带视锥剔除+透明排序）
         if(!player.cameraMode)
         {

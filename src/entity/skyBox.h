@@ -19,6 +19,7 @@ public:
     void render(Shader& skyShader, glm::mat4 view, glm::mat4 proj, glm::vec3 cameraPos);
     glm::vec3 getHorizonColor() const;
     glm::vec3 getZenithColor() const;
+    glm::vec3 getAmbientColor() const;
     void clear()
     {
         if (quadVAO != 0) glDeleteVertexArrays(1, &quadVAO);
