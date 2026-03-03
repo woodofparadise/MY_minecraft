@@ -1,8 +1,8 @@
 #version 450 core
 
 in vec2 TexCoords;
-in float LightLevel;   // 天空光
-in float BlockLight;   // 方块光（火把等）
+in float SkyLight;     // 顶点着色器已解码的天空光 0~15
+in float BlockLight;   // 顶点着色器已解码的方块光 0~15
 in float FragDist;
 
 uniform sampler2D blockTexture;
@@ -28,8 +28,9 @@ void main()
     if (texColor.a < 0.1)
         discard;
 
-    // 双通道光照：天空光受 ambientColor 色调影响，方块光（火把）不受影响
-    float skyBrightness   = pow(0.8, 15.0 - LightLevel);
+    // 天空光受 ambientColor 色调影响，方块光（火把）不受影响
+    // SkyLight/BlockLight 已在顶点着色器中解码，避免插值后 floor/fract 精度问题
+    float skyBrightness   = pow(0.8, 15.0 - SkyLight);
     float blockBrightness = pow(0.8, 15.0 - BlockLight);
     vec3 litColor = texColor.rgb * max(skyBrightness * ambientColor, vec3(blockBrightness));
 

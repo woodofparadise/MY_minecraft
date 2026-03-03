@@ -10,8 +10,7 @@ struct Vertex
     glm::vec3 Position;
     glm::vec3 Normal;
     glm::vec2 Texcoord;
-    float     LightLevel = 15.0f;  // 天空光等级 0~15，默认满亮度
-    float     BlockLight = 0.0f;   // 方块光等级 0~15（火把等发光方块）
+    float     LightLevel = 15.0f;  // 编码光照：整数部分=天空光(0~15)，小数部分=方块光/16
 };
 
 struct Triangle

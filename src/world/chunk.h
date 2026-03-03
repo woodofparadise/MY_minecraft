@@ -91,12 +91,9 @@ class Chunk
         BLOCK_TYPE get_neighbor_block(int i, int j, int k, int face,
             const Chunk* neighbours[4]) const;
 
-        // 获取相邻方块的天空光等级（用于 mesh 生成时写入顶点属性）
-        float get_neighbor_light(int i, int j, int k, int face,
-            const Chunk* neighbours[4]) const;
-
-        // 获取相邻方块的方块光等级（火把等，用于 mesh 生成时写入顶点属性）
-        float get_neighbor_block_light(int i, int j, int k, int face,
+        // 获取相邻方块的合并光照：编码为 skyLight + blockLight / 16.0
+        // 一次遍历同时读取 skyLights 和 blockLights，避免双倍查询开销
+        float get_neighbor_combined_light(int i, int j, int k, int face,
             const Chunk* neighbours[4]) const;
 
         // 光照 BFS 的通用传播函数（阶段一和阶段二共用）

@@ -101,8 +101,6 @@ void Chunk::upload_data()
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, Texcoord));
     glEnableVertexAttribArray(3);
     glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, LightLevel));
-    glEnableVertexAttribArray(4);
-    glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, BlockLight));
 }
 
 void Chunk::upload_data_transparent()
@@ -133,8 +131,6 @@ void Chunk::upload_data_transparent()
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, Texcoord));
     glEnableVertexAttribArray(3);
     glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, LightLevel));
-    glEnableVertexAttribArray(4);
-    glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, BlockLight));
 }
 
 Chunk::Chunk(PerlinNoise& perlinNoise, int x, int y)
@@ -296,24 +292,22 @@ void Chunk::update_data(const Chunk* neighbours[4])
                 if(blockType == TORCH)
                 {
                     glm::vec2 tex = sideTexCoords[TORCH];
-                    float light  = (float)skyLights[lightIdx(i, j, k)];
-                    float blight = (float)blockLights[lightIdx(i, j, k)];
+                    int idx = lightIdx(i, j, k);
+                    float light = (float)skyLights[idx] + (float)blockLights[idx] * 0.0625f;
 
-                    // Quad A (╲ 对角): (0,*,1) ↔ (1,*,0)
-                    Vertex a0 = {blockPos + glm::vec3(0,1,1), faceNormal[5], tex,                    light, blight};
-                    Vertex a1 = {blockPos + glm::vec3(1,1,0), faceNormal[5], tex + texRight,         light, blight};
-                    Vertex a2 = {blockPos + glm::vec3(0,0,1), faceNormal[5], tex + texDown,          light, blight};
-                    Vertex a3 = {blockPos + glm::vec3(1,0,0), faceNormal[5], tex + texRight+texDown, light, blight};
-                    create_face(a0, a1, a2, a3);        // 正面
-                    create_face(a0, a2, a1, a3);        // 反面（翻转绕序）
+                    Vertex a0 = {blockPos + glm::vec3(0,1,1), faceNormal[5], tex,                    light};
+                    Vertex a1 = {blockPos + glm::vec3(1,1,0), faceNormal[5], tex + texRight,         light};
+                    Vertex a2 = {blockPos + glm::vec3(0,0,1), faceNormal[5], tex + texDown,          light};
+                    Vertex a3 = {blockPos + glm::vec3(1,0,0), faceNormal[5], tex + texRight+texDown, light};
+                    create_face(a0, a1, a2, a3);
+                    create_face(a0, a2, a1, a3);
 
-                    // Quad B (╱ 对角): (1,*,1) ↔ (0,*,0)
-                    Vertex b0 = {blockPos + glm::vec3(1,1,1), faceNormal[3], tex,                    light, blight};
-                    Vertex b1 = {blockPos + glm::vec3(0,1,0), faceNormal[3], tex + texRight,         light, blight};
-                    Vertex b2 = {blockPos + glm::vec3(1,0,1), faceNormal[3], tex + texDown,          light, blight};
-                    Vertex b3 = {blockPos + glm::vec3(0,0,0), faceNormal[3], tex + texRight+texDown, light, blight};
-                    create_face(b0, b1, b2, b3);        // 正面
-                    create_face(b0, b2, b1, b3);        // 反面
+                    Vertex b0 = {blockPos + glm::vec3(1,1,1), faceNormal[3], tex,                    light};
+                    Vertex b1 = {blockPos + glm::vec3(0,1,0), faceNormal[3], tex + texRight,         light};
+                    Vertex b2 = {blockPos + glm::vec3(1,0,1), faceNormal[3], tex + texDown,          light};
+                    Vertex b3 = {blockPos + glm::vec3(0,0,0), faceNormal[3], tex + texRight+texDown, light};
+                    create_face(b0, b1, b2, b3);
+                    create_face(b0, b2, b1, b3);
 
                     continue;
                 }
@@ -330,13 +324,12 @@ void Chunk::update_data(const Chunk* neighbours[4])
                     if(neighborBlock == blockType) continue;
 
                     glm::vec2 tex = (face == 5) ? topTex : (face == 4) ? bottomTex : sideTex;
-                    float light  = get_neighbor_light(i, j, k, face, neighbours);
-                    float blight = get_neighbor_block_light(i, j, k, face, neighbours);
+                    float light = get_neighbor_combined_light(i, j, k, face, neighbours);
 
-                    Vertex v1 = {blockPos + faceVertexOffset[face][0], faceNormal[face], tex,                    light, blight};
-                    Vertex v2 = {blockPos + faceVertexOffset[face][1], faceNormal[face], tex + texRight,         light, blight};
-                    Vertex v3 = {blockPos + faceVertexOffset[face][2], faceNormal[face], tex + texDown,          light, blight};
-                    Vertex v4 = {blockPos + faceVertexOffset[face][3], faceNormal[face], tex + texRight+texDown, light, blight};
+                    Vertex v1 = {blockPos + faceVertexOffset[face][0], faceNormal[face], tex,                    light};
+                    Vertex v2 = {blockPos + faceVertexOffset[face][1], faceNormal[face], tex + texRight,         light};
+                    Vertex v3 = {blockPos + faceVertexOffset[face][2], faceNormal[face], tex + texDown,          light};
+                    Vertex v4 = {blockPos + faceVertexOffset[face][3], faceNormal[face], tex + texRight+texDown, light};
 
                     if(is_border_face(i, j, face))
                     {
@@ -441,39 +434,8 @@ BLOCK_TYPE Chunk::get_neighbor_block(
     return AIR;
 }
 
-float Chunk::get_neighbor_light(
-    int i, int j, int k,
-    int face,
-    const Chunk* neighbours[4]
-) const
-{
-    // neighbours: [0]=left(-X), [1]=right(+X), [2]=forward(-Z), [3]=back(+Z)
-    int ni = i - (int)faceNormal[face].z;
-    int nj = j + (int)faceNormal[face].x;
-    int nk = k + (int)faceNormal[face].y;
-
-    if(nk >= CHUNK_HEIGHT) return 15.0f;  // 世界顶部以上，天空满亮度
-    if(nk < 0) return 0.0f;               // 世界底部以下，全黑
-
-    if(ni >= 0 && ni < CHUNK_SIZE && nj >= 0 && nj < CHUNK_SIZE)
-    {
-        return (float)skyLights[lightIdx(ni, nj, nk)];
-    }
-    // 跨区块访问：get_block_light 使用数组索引（无翻转）
-    if(nj == CHUNK_SIZE && neighbours[1])
-        return (float)neighbours[1]->get_block_light({i, 0, nk});
-    if(nj < 0 && neighbours[0])
-        return (float)neighbours[0]->get_block_light({i, CHUNK_SIZE-1, nk});
-    if(ni == CHUNK_SIZE && neighbours[2])
-        return (float)neighbours[2]->get_block_light({0, j, nk});
-    if(ni < 0 && neighbours[3])
-        return (float)neighbours[3]->get_block_light({CHUNK_SIZE-1, j, nk});
-
-    return 15.0f;  // 邻居区块未加载，默认满亮度
-}
-
-// 获取相邻方块的方块光（火把等），逻辑同 get_neighbor_light，但读 blockLights
-float Chunk::get_neighbor_block_light(
+// 合并查询：一次邻居定位同时读取 skyLights + blockLights，编码为 sky + block/16.0
+float Chunk::get_neighbor_combined_light(
     int i, int j, int k,
     int face,
     const Chunk* neighbours[4]
@@ -483,23 +445,45 @@ float Chunk::get_neighbor_block_light(
     int nj = j + (int)faceNormal[face].x;
     int nk = k + (int)faceNormal[face].y;
 
-    if(nk >= CHUNK_HEIGHT || nk < 0) return 0.0f;  // 方块光越界一律为 0
+    if(nk >= CHUNK_HEIGHT) return 15.0f;   // 世界顶部：天空满亮度，方块光 0
+    if(nk < 0) return 0.0f;
 
+    float sky, block;
     if(ni >= 0 && ni < CHUNK_SIZE && nj >= 0 && nj < CHUNK_SIZE)
     {
-        return (float)blockLights[lightIdx(ni, nj, nk)];
+        int idx = lightIdx(ni, nj, nk);
+        sky   = (float)skyLights[idx];
+        block = (float)blockLights[idx];
     }
-    // 跨区块访问
-    if(nj == CHUNK_SIZE && neighbours[1])
-        return (float)neighbours[1]->get_torch_light({i, 0, nk});
-    if(nj < 0 && neighbours[0])
-        return (float)neighbours[0]->get_torch_light({i, CHUNK_SIZE-1, nk});
-    if(ni == CHUNK_SIZE && neighbours[2])
-        return (float)neighbours[2]->get_torch_light({0, j, nk});
-    if(ni < 0 && neighbours[3])
-        return (float)neighbours[3]->get_torch_light({CHUNK_SIZE-1, j, nk});
-
-    return 0.0f;  // 邻居区块未加载，方块光默认为 0
+    else if(nj == CHUNK_SIZE && neighbours[1])
+    {
+        glm::ivec3 nb{i, 0, nk};
+        sky   = (float)neighbours[1]->get_block_light(nb);
+        block = (float)neighbours[1]->get_torch_light(nb);
+    }
+    else if(nj < 0 && neighbours[0])
+    {
+        glm::ivec3 nb{i, CHUNK_SIZE-1, nk};
+        sky   = (float)neighbours[0]->get_block_light(nb);
+        block = (float)neighbours[0]->get_torch_light(nb);
+    }
+    else if(ni == CHUNK_SIZE && neighbours[2])
+    {
+        glm::ivec3 nb{0, j, nk};
+        sky   = (float)neighbours[2]->get_block_light(nb);
+        block = (float)neighbours[2]->get_torch_light(nb);
+    }
+    else if(ni < 0 && neighbours[3])
+    {
+        glm::ivec3 nb{CHUNK_SIZE-1, j, nk};
+        sky   = (float)neighbours[3]->get_block_light(nb);
+        block = (float)neighbours[3]->get_torch_light(nb);
+    }
+    else
+    {
+        return 15.0f;  // 邻居区块未加载，默认满亮度
+    }
+    return sky + block * 0.0625f;  // 编码：整数部分=天空光，小数部分=方块光/16
 }
 
 void Chunk::sort_transparent_faces(const glm::vec3& localCameraPos)
@@ -555,19 +539,31 @@ bool Chunk::set_block(int x, int y, int z, BLOCK_TYPE blockType, Chunk* neighbou
     if(get_block_luminous(blockType) > 0)
         update_light_on_create_luminous({i, j, z}, blockType, neighbours);
 
-    // 天空光通道：所有方块变化都需要更新
-    pendingLightUpdates.push_back({{i, j, z}, isDestroy});
-    lightUpdate = std::max(lightUpdate, PROPAGATE);
+    // 天空光通道：仅当方块不透明度变化时才触发 skyLights 更新
+    // 透光方块互换（如 AIR↔TORCH）不影响 skyLights，跳过代价高昂的边界传播
+    if(get_opacity(blockType) != get_opacity(oldType))
+    {
+        pendingLightUpdates.push_back({{i, j, z}, isDestroy});
+        lightUpdate = std::max(lightUpdate, PROPAGATE);
+    }
+    else
+    {
+        lightUpdate = std::max(lightUpdate, VERTEX_ONLY);
+    }
 
     // 边界方块变化时标记邻居区块的边界面片需要更新
-    if(i == 0 && neighbours[3])
-        neighbours[3]->meshUpdate = std::max(neighbours[3]->meshUpdate, MESH_BORDER_REFRESH);
-    if(i == CHUNK_SIZE-1 && neighbours[2])
-        neighbours[2]->meshUpdate = std::max(neighbours[2]->meshUpdate, MESH_BORDER_REFRESH);
-    if(j == 0 && neighbours[0])
-        neighbours[0]->meshUpdate = std::max(neighbours[0]->meshUpdate, MESH_BORDER_REFRESH);
-    if(j == CHUNK_SIZE-1 && neighbours[1])
-        neighbours[1]->meshUpdate = std::max(neighbours[1]->meshUpdate, MESH_BORDER_REFRESH);
+    // 透光方块互换（AIR↔TORCH 等）不改变邻居面片的生成决策，跳过邻居 mesh 重建
+    if(is_transparent(blockType) != is_transparent(oldType))
+    {
+        if(i == 0 && neighbours[3])
+            neighbours[3]->meshUpdate = std::max(neighbours[3]->meshUpdate, MESH_BORDER_REFRESH);
+        if(i == CHUNK_SIZE-1 && neighbours[2])
+            neighbours[2]->meshUpdate = std::max(neighbours[2]->meshUpdate, MESH_BORDER_REFRESH);
+        if(j == 0 && neighbours[0])
+            neighbours[0]->meshUpdate = std::max(neighbours[0]->meshUpdate, MESH_BORDER_REFRESH);
+        if(j == CHUNK_SIZE-1 && neighbours[1])
+            neighbours[1]->meshUpdate = std::max(neighbours[1]->meshUpdate, MESH_BORDER_REFRESH);
+    }
 
     // 邻居光照标记（基于距离，光最远传播15格）
     // 破坏：边界光照只会增加 → PROPAGATE（update_chunk_light 处理）
@@ -933,13 +929,12 @@ void Chunk::refresh_border_mesh(const Chunk* neighbours[4])
         glm::vec2 tex = (face == 5) ? topTexCoords[blockType]
                        : (face == 4) ? bottomTexCoords[blockType]
                        : sideTexCoords[blockType];
-        float light  = get_neighbor_light(i, j, k, face, neighbours);
-        float blight = get_neighbor_block_light(i, j, k, face, neighbours);
+        float light = get_neighbor_combined_light(i, j, k, face, neighbours);
 
-        Vertex v1 = {blockPos + faceVertexOffset[face][0], faceNormal[face], tex,                    light, blight};
-        Vertex v2 = {blockPos + faceVertexOffset[face][1], faceNormal[face], tex + texRight,         light, blight};
-        Vertex v3 = {blockPos + faceVertexOffset[face][2], faceNormal[face], tex + texDown,          light, blight};
-        Vertex v4 = {blockPos + faceVertexOffset[face][3], faceNormal[face], tex + texRight+texDown, light, blight};
+        Vertex v1 = {blockPos + faceVertexOffset[face][0], faceNormal[face], tex,                    light};
+        Vertex v2 = {blockPos + faceVertexOffset[face][1], faceNormal[face], tex + texRight,         light};
+        Vertex v3 = {blockPos + faceVertexOffset[face][2], faceNormal[face], tex + texDown,          light};
+        Vertex v4 = {blockPos + faceVertexOffset[face][3], faceNormal[face], tex + texRight+texDown, light};
         if(is_translucent(blockType))
             create_face_transparent(v1, v2, v3, v4);
         else
@@ -978,27 +973,24 @@ void Chunk::refresh_vertex_lights(const Chunk* neighbours[4])
     for(size_t v = 0; v + 3 < vertices.size(); v += 4)
     {
         int face = normal_to_face(vertices[v].Normal);
-        // 从顶点位置反推方块的 mesh 局部坐标
         glm::vec3 blockPos = vertices[v].Position - faceVertexOffset[face][0];
         int i = CHUNK_SIZE - 1 - (int)blockPos.z;
         int j = (int)blockPos.x;
         int k = (int)blockPos.y;
-        float light, blight;
+        float light;
         if(is_valid_index({i, j, k}) && get_block_luminous(chunkBlocks[i][j][k]) > 0)
         {
-            // 发光方块自身：直接读取所在位置的光照
-            light  = (float)skyLights[lightIdx(i, j, k)];
-            blight = (float)blockLights[lightIdx(i, j, k)];
+            int idx = lightIdx(i, j, k);
+            light = (float)skyLights[idx] + (float)blockLights[idx] * 0.0625f;
         }
         else
         {
-            light  = get_neighbor_light(i, j, k, face, neighbours);
-            blight = get_neighbor_block_light(i, j, k, face, neighbours);
+            light = get_neighbor_combined_light(i, j, k, face, neighbours);
         }
-        vertices[v].LightLevel   = light;  vertices[v].BlockLight   = blight;
-        vertices[v+1].LightLevel = light;  vertices[v+1].BlockLight = blight;
-        vertices[v+2].LightLevel = light;  vertices[v+2].BlockLight = blight;
-        vertices[v+3].LightLevel = light;  vertices[v+3].BlockLight = blight;
+        vertices[v].LightLevel   = light;
+        vertices[v+1].LightLevel = light;
+        vertices[v+2].LightLevel = light;
+        vertices[v+3].LightLevel = light;
     }
     for(size_t v = 0; v + 3 < verticesT.size(); v += 4)
     {
@@ -1007,12 +999,11 @@ void Chunk::refresh_vertex_lights(const Chunk* neighbours[4])
         int i = CHUNK_SIZE - 1 - (int)blockPos.z;
         int j = (int)blockPos.x;
         int k = (int)blockPos.y;
-        float light  = get_neighbor_light(i, j, k, face, neighbours);
-        float blight = get_neighbor_block_light(i, j, k, face, neighbours);
-        verticesT[v].LightLevel   = light;  verticesT[v].BlockLight   = blight;
-        verticesT[v+1].LightLevel = light;  verticesT[v+1].BlockLight = blight;
-        verticesT[v+2].LightLevel = light;  verticesT[v+2].BlockLight = blight;
-        verticesT[v+3].LightLevel = light;  verticesT[v+3].BlockLight = blight;
+        float light = get_neighbor_combined_light(i, j, k, face, neighbours);
+        verticesT[v].LightLevel   = light;
+        verticesT[v+1].LightLevel = light;
+        verticesT[v+2].LightLevel = light;
+        verticesT[v+3].LightLevel = light;
     }
 
     // 仅重传 VBO 数据（几何不变，VAO/EBO 不动）
