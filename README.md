@@ -1,166 +1,83 @@
 # Homemade Minecraft
 
-基于 C++ 和 OpenGL 4.5 的 Minecraft 克隆项目，用于学习图形学和游戏开发。
+基于 C++ 和 OpenGL 4.5 的 Minecraft 克隆项目，用于学习计算机图形学和游戏开发。
+
+![demo](demo.png)
 
 ## 功能特性
 
-- **程序化地形生成**：使用多层柏林噪声（FBM）和样条曲线映射生成丰富地形，包含深海、浅海、海岸、平原、丘陵、山地等多种地貌
-- **方块系统**：支持 13 种方块类型（草方块、石头、沙子、水、泥土、木头、玻璃、煤矿、铁矿、金矿、钻石、火把）
-- **方块交互**：射线检测实现方块选中高亮，支持破坏和放置方块
-- **物理系统**：重力、跳跃、AABB 碰撞检测
-- **玩家模型**：Steve 风格的可渲染玩家角色，支持皮肤纹理
-- **视角切换**：第一人称/第三人称视角切换
-- **透明方块渲染**：两遍渲染（不透明 + 透明），Alpha 混合，逐面片距离排序
-- **光照系统**：基于 BFS 的逐方块光照传播，天空光柱直射 + 衰减扩散，增量更新（破坏/放置方块不全量重算），火把点光源（亮度 14）
-- **视锥体剔除**：基于 VP 矩阵的 chunk 级视锥体剔除，跳过不可见区块的渲染和网格构建
-- **HUD 界面**：屏幕准星、9 格工具栏、方块选择、FPS/顶点数/面片数实时显示
+**世界生成**
+- 多层柏林噪声（FBM）+ 样条曲线映射，生成深海、浅海、海岸、平原、丘陵、山地等地貌
+- 3D 噪声生成洞穴系统
+- 13 种方块类型：草方块、石头、沙子、水、泥土、木头、玻璃、煤矿、铁矿、金矿、钻石、火把
 
-## 构建与运行
+**双通道光照系统**
+- 天空光（0\~15）：天空光柱直射 + BFS 衰减传播，受昼夜 ambientColor 调制
+- 方块光（0\~14）：火把等发光方块独立传播，夜晚恒亮不受环境光影响
+- 浮点编码合并传输：`LightLevel = sky + block/16`，顶点着色器精确解码
+- 增量更新：放置/破坏方块仅更新受影响区域，四级更新等级调度
+- 跨区块传播：方块光 BFS 可穿越区块边界
 
-### 依赖项
+**渲染**
+- 动态天空系统：时间驱动的天空颜色渐变 + 全屏四边形渲染
+- 透明渲染：两遍渲染（不透明 → Alpha 混合），逐面片距离排序
+- 距离雾化：smoothstep 雾化融合天空色
+- 视锥体剔除：chunk 级 AABB 剔除，不可见区块延迟构建
+- 仅渲染与空气接触的表面，边界面片定向重建
 
-- OpenGL 4.5+
-- GLFW3
-- GLM (header-only)
-- FreeType2 (字体渲染)
-- GLAD (已包含)
+**交互与物理**
+- 射线检测方块选中高亮，支持放置和破坏
+- 重力 + 跳跃 + AABB 碰撞检测
+- 第一人称/第三人称视角切换
+- Steve 风格玩家模型（64×64 皮肤纹理）
+- HUD：准星、9 格工具栏、FPS/顶点数实时显示
 
-### 安装依赖 (Ubuntu/Debian)
+## 快速开始
+
+### 依赖
+
+- OpenGL 4.5+、GLFW3、GLM、FreeType2
+- GLAD（已包含在 `lib/glad/`）
 
 ```bash
-sudo apt update
+# Ubuntu/Debian
 sudo apt install -y libglfw3-dev libglm-dev libfreetype-dev
 ```
 
-### 编译方法一：CMake（推荐）
+### 构建与运行
 
 ```bash
-# 创建构建目录
 mkdir build && cd build
-
-# 配置项目
 cmake ..
-
-# 编译（使用所有 CPU 核心）
-cmake --build . -j$(nproc)
-
-# 或者使用 make
 make -j$(nproc)
-```
-
-### 编译方法二：直接编译
-
-```bash
-g++ -o main main.cpp \
-    src/core/game.cpp src/core/camera.cpp \
-    src/world/chunk.cpp src/world/terrain.cpp src/world/block.cpp \
-    src/entity/player.cpp src/entity/collision.cpp \
-    src/render/texture.cpp \
-    src/ui/HUDpainter.cpp src/ui/toolBar.cpp src/ui/itemSelection.cpp \
-    src/utils/stb_image.cpp \
-    lib/glad/glad.c \
-    -I./include -lglfw -lGL -ldl -lfreetype
-```
-
-### 运行
-
-```bash
-# 如果使用 CMake 构建
-cd build
 ./MyMinecraft
-
-# 如果使用直接编译
-./main
 ```
 
 ## 操作说明
 
-| 按键 | 功能 |
-|------|------|
-| W/A/S/D | 移动 |
-| 鼠标 | 视角控制 |
-| 空格 | 跳跃 |
-| R | 切换第一/第三人称 |
-| 鼠标左键 | 放置方块 |
-| 鼠标右键 | 破坏方块 |
-| 1-9 | 选择工具栏槽位 |
-| 滚轮 | 缩放视野 |
-| ESC | 退出游戏 |
+| 按键 | 功能 | 按键 | 功能 |
+|------|------|------|------|
+| W/A/S/D | 移动 | 鼠标 | 视角控制 |
+| 空格 | 跳跃 | R | 切换第一/第三人称 |
+| 鼠标左键 | 放置方块 | 鼠标右键 | 破坏方块 |
+| 1-9 | 选择工具栏槽位 | 滚轮 | 缩放视野 |
+| ESC | 退出 | | |
 
 ## 项目结构
 
 ```
-minecraft/
-├── main.cpp                    # 程序入口
-├── CMakeLists.txt              # CMake 配置文件
+├── main.cpp                 # 程序入口
 ├── src/
-│   ├── core/                   # 游戏核心
-│   │   ├── game.h / game.cpp           # 游戏主类
-│   │   ├── camera.h / camera.cpp       # 摄像机
-│   │   └── preDefined.h                # 全局常量
-│   ├── world/                  # 世界系统
-│   │   ├── terrain.h / terrain.cpp     # 地形管理
-│   │   ├── chunk.h / chunk.cpp         # 区块
-│   │   ├── block.h / block.cpp         # 方块类型
-│   │   └── perlin_noise.h              # 柏林噪声
-│   ├── entity/                 # 实体系统
-│   │   ├── player.h / player.cpp       # 玩家
-│   │   └── collision.h / collision.cpp # 碰撞检测
-│   ├── render/                 # 渲染系统
-│   │   ├── Shader.h                    # 着色器封装
-│   │   ├── texture.h / texture.cpp     # 纹理加载
-│   │   └── basic_struct.h              # 顶点结构
-│   ├── ui/                     # 用户界面
-│   │   ├── HUDpainter.h / HUDpainter.cpp   # HUD 绘制
-│   │   ├── toolBar.h / toolBar.cpp         # 工具栏
-│   │   ├── itemSelection.h / itemSelection.cpp # 方块选择
-│   │   └── textRenderer.h              # 文字渲染
-│   └── utils/                  # 工具库
-│       ├── stb_image.h                 # 图像加载（头文件）
-│       └── stb_image.cpp               # 图像加载（实现）
-├── lib/glad/                   # GLAD 库
-├── shaders/                    # GLSL 着色器
-│   ├── blockShader.vs / .fs            # 方块渲染
-│   ├── selectionShader.vs / .fs        # 选中高亮
-│   ├── HUDshader.vs / .fs              # HUD 渲染
-│   └── textShader.vs / .fs             # 文字渲染
-└── Textures/                   # 纹理资源
+│   ├── core/                # 游戏主循环、摄像机、全局常量
+│   ├── world/               # 区块(32×128×32)、地形管理、方块定义、柏林噪声
+│   ├── entity/              # 玩家、碰撞检测、天空盒
+│   ├── render/              # 着色器封装、纹理加载、顶点结构
+│   ├── ui/                  # HUD、工具栏、方块选择、文字渲染
+│   └── utils/               # stb_image 图像加载
+├── shaders/                 # GLSL 着色器（方块/天空/选中高亮/HUD/文字）
+├── Textures/                # 纹理资源
+└── lib/glad/                # GLAD 库
 ```
-
-## 技术实现
-
-- **区块系统**：32×128×32 的区块划分，动态加载玩家周围 5×5 区块
-- **地形生成**：
-  - 分形布朗运动噪声（FBM）叠加多层 Perlin 噪声
-  - 三层噪声混合：大陆性（continental）、侵蚀度（erosion）、峰谷（peaks）
-  - 样条曲线映射实现平滑的海洋-平原-山地过渡
-- **光照系统**：
-  - 天空光柱直射（连续 AIR 列 light=15）+ BFS 衰减传播（每格 -opacity）
-  - 两阶段更新：阶段一 `init_local_light` 区块内部光照，阶段二 `update_chunk_light` 跨区块边界传播
-  - 增量更新：`set_block` 仅记录 `pendingLightUpdates`，由 `update_terrain` 统一调度
-  - 破坏方块：天空光柱恢复 + 正向 BFS 传播
-  - 放置方块：移除 BFS（清零依赖光照）+ 天空光柱截断 + 重传播
-  - 火把光源：放置时以亮度 14 播种正向 BFS，破坏时移除 BFS + 天空光柱恢复；通过翻转 `isDestroy` 标志复用已有的光照更新路径
-  - 邻居边界增量移除 `remove_boundary_light`：替代全量重算，仅处理 ~4K 边界格
-  - 四级光照更新等级（`LightUpdateLevel`）：NONE / VERTEX_ONLY / PROPAGATE / FULL_RESET，级联包含
-- **渲染优化**：
-  - 仅渲染与空气接触的方块表面，相邻区块边界面剔除
-  - 方向表驱动的面剔除（`faceVertexOffset[6][4]` / `faceNormal[6]`）
-  - chunk 级视锥体剔除（Gribb/Hartmann 平面提取 + AABB P-vertex 测试）
-  - 不可见 chunk 延迟网格构建（保留 `meshUpdate` 标记，进入视野后再构建）
-  - 三级 mesh 更新等级（`MeshUpdateLevel`）：NONE / BORDER_REFRESH / FULL_REBUILD
-  - `update_data` 单趟遍历：内部面直接写入主 buffer，边界面写入临时 buffer 后追加
-  - `refresh_border_mesh` 定向遍历：仅遍历 4 条边界线（16K 格），每条线生成确定的面方向
-  - `blockLights` 一维化存储：连续内存布局，`std::fill` 清零，改善缓存命中率
-- **透明渲染**：
-  - 不透明/透明网格分离（独立 VAO/VBO/EBO）
-  - 两遍渲染：Pass1 不透明（深度写入 ON）→ Pass2 透明（Alpha 混合 ON，深度写入 OFF）
-  - chunk 级距离排序（从远到近）+ chunk 内逐面片距离排序
-  - 透明 EBO 使用 `GL_DYNAMIC_DRAW`，每帧仅重传索引缓冲
-- **火把渲染**：十字交叉面片（两组对角四边形），无碰撞箱，Alpha 测试（discard）剔除透明像素
-- **纹理图集**：16×16 方块纹理图集，支持顶面/底面/侧面不同纹理
-- **HUD 纹理预计算**：工具栏方块图标纹理坐标在 CPU 端预计算，避免片段着色器内 switch 选择
-- **着色器**：方块渲染、选中高亮、HUD、文字渲染四套独立着色器
 
 ## 许可证
 
