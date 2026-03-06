@@ -50,7 +50,7 @@ Game::Game(bool& gameState, int seed)
     terrain.init_terrain(this->seed, player.position, "./Textures/DefaultPack.png");
     terrain.bind_block_texture(blockShader);
     player.bind_player_texture(blockShader);
-    player.set_position(glm::vec3(0.5f, terrain.get_height(player.position), 0.5f));
+    player.set_position(glm::vec3(0.5f, terrain.get_height(player.position)+1, 0.5f));
     blockShader.set_int("blockTexture", 1);
     blockShader.set_int("playerTexture", 2);
 
@@ -209,18 +209,12 @@ void Game::mouse_callback(GLFWwindow* window, double xposIn, double yposIn)
         cout << "handle mouse movement error" << endl;
         return ;
     }
+    // 光标未被捕获时不处理视角
+    if (!game->cursorCaptured) return;
+
     float xpos = static_cast<float>(xposIn);
     float ypos = static_cast<float>(yposIn);
-    // cout << xpos << " " << ypos << endl;
 
-    // player.camera.processMouseMovement1(xpos, ypos);
-
-    // if(firstMouse)
-    // {
-    //     firstMouse = false;
-    //     lastX = xpos;
-    //     lastY = ypos;
-    // }
     float xoffset = xpos - game->lastX;
     float yoffset = game->lastY - ypos;
 
@@ -258,6 +252,21 @@ void Game::key_callback(GLFWwindow* window, int key, int scancode, int action, i
         if(key == GLFW_KEY_SPACE)
         {
             game->player.jump();
+        }
+        if(key == GLFW_KEY_TAB)
+        {
+            game->cursorCaptured = !game->cursorCaptured;
+            if (game->cursorCaptured)
+            {
+                glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+                glfwSetCursorPos(window, SCR_WIDTH / 2, SCR_HEIGHT / 2);
+                game->lastX = SCR_WIDTH / 2;
+                game->lastY = SCR_HEIGHT / 2;
+            }
+            else
+            {
+                glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            }
         }
         if(key == GLFW_KEY_ESCAPE)
         {

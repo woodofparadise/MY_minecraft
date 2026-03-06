@@ -53,6 +53,7 @@ class Game
         float lastX = SCR_WIDTH/2;      // 鼠标上一帧的横坐标
         float lastY = SCR_HEIGHT/2;     // 鼠标上一帧的纵坐标
         bool firstMouse = true;         // 标记鼠标是否是第一次进入游戏界面范围
+        bool cursorCaptured = true;     // 光标是否被游戏捕获（Tab切换）
         bool blockSelected = false;     // 标记是否有效选中了一个方块
         int seed;                       // 世界种子
         GLFWwindow* window;             // 游戏窗口
