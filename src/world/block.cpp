@@ -38,6 +38,10 @@ glm::vec2 get_tex_coord(unsigned int blockType, int face)
             }
             return glm::vec2(4.0f/16.0f, 15.0f/16.0f);
         }
+        case(LEAF):
+        {
+            return glm::vec2(4.0f/16.0f, 13.0f/16.0f);
+        }
         case(GLASS):
         {
             return glm::vec2(1.0f/16.0f, 13.0f/16.0f);
@@ -85,7 +89,7 @@ glm::vec2 get_icon_tex_coord(BLOCK_TYPE blockType)
 
 bool is_transparent(BLOCK_TYPE blockType)
 {
-    if(blockType == AIR || blockType == WATER || blockType == GLASS || blockType == TORCH)
+    if(blockType == AIR || blockType == WATER || blockType == GLASS || blockType == TORCH || blockType == LEAF)
     {
         return true;
     }
@@ -105,6 +109,7 @@ int get_opacity(BLOCK_TYPE type)
         case TORCH:    return 1;
         case WATER:  return 2;
         case GLASS:  return 1;
+        case LEAF: return 3;
         default:     return 16;  // 实心方块，光无法穿透
     }
     return 16;

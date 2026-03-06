@@ -107,6 +107,9 @@ class Chunk
         void update_light_on_create_luminous(const glm::ivec3& pos, BLOCK_TYPE blockType, Chunk* neighbours[4]);
         void update_light_on_destory_luminous(const glm::ivec3& pos, Chunk* neighbours[4]);
 
+        // 在指定位置生成一棵树（pos 为数组索引空间）
+        void create_tree(const glm::ivec3& pos);
+
         // 邻居边界增量光照移除（放置方块时替代 init_local_light）
         // side: 0=j=0(left), 1=j=max(right), 2=i=max(forward), 3=i=0(back)
         void remove_boundary_light(int side);

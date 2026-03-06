@@ -143,6 +143,9 @@ Chunk::Chunk(PerlinNoise& perlinNoise, int x, int y)
     skyLights.resize(CHUNK_SIZE * CHUNK_SIZE * CHUNK_HEIGHT, 0);
     blockLights.resize(CHUNK_SIZE * CHUNK_SIZE * CHUNK_HEIGHT, 0);
 
+    // 计算水线高度
+    int waterLevel = CHUNK_HEIGHT/2;
+
     // 基于二维柏林噪声生成随机地形
     for(int i = 0; i < CHUNK_SIZE; i++)
     {
@@ -163,10 +166,6 @@ Chunk::Chunk(PerlinNoise& perlinNoise, int x, int y)
 
 
             height = max(1, min(height, CHUNK_HEIGHT-2)); // 限制高度范围
-
-            // 计算水线高度
-            int waterLevel = CHUNK_HEIGHT/2;
-            // waterLevel = max(CHUNK_HEIGHT/3, min(waterLevel, CHUNK_HEIGHT*2/3)); // 限制水线范围
 
             // 如果在水下
             if(height < waterLevel)
@@ -242,6 +241,32 @@ Chunk::Chunk(PerlinNoise& perlinNoise, int x, int y)
         }
     }
 
+    // 初始化天空光照
+    init_local_light();
+
+    // 生成树木：噪声控制区域密度 + 坐标哈希控制个体间距
+    for (int i = 1; i < CHUNK_SIZE-1; i++)
+    {
+        for (int j = 1; j < CHUNK_SIZE-1; j++)
+        {
+            int ai = CHUNK_SIZE - 1 - i; // 数组第一维索引
+            int surfaceK = heightMap[ai][j];
+            // 地表必须是草地且高于水面
+            if (surfaceK <= waterLevel || chunkBlocks[ai][j][surfaceK] != GRASS || skyLights[lightIdx(ai, j, surfaceK+1)] < 14) continue;
+
+            // 用独立频率的噪声采样树木密度（偏移 1000 避免与地形相关）
+            int wx = x * CHUNK_SIZE + j, wz = y * CHUNK_SIZE + i;
+            double treeNoise = perlinNoise.get_2D_perlin_noice((wx + 1000.0) * 0.05, (wz + 1000.0) * 0.05);
+            if (treeNoise < 0.3) continue;
+
+            // 坐标哈希稀疏化，保证确定性且树间有间距
+            unsigned int h = (unsigned int)(wx * 73856093u ^ wz * 19349663u);
+            if (h % 37 != 0) continue;
+
+            create_tree({ai, j, surfaceK + 1});
+        }
+    }
+
     // 预计算方块纹理坐标
     sideTexCoords = new glm::vec2[BLOCK_TYPE_NUM];
     topTexCoords = new glm::vec2[BLOCK_TYPE_NUM];
@@ -252,8 +277,6 @@ Chunk::Chunk(PerlinNoise& perlinNoise, int x, int y)
         topTexCoords[blockType] = get_tex_coord(blockType, 1);
         bottomTexCoords[blockType] = get_tex_coord(blockType, 2);
     }
-
-    init_local_light();
 
     // 每个方块的索引即为其在该区块中的minCoord
     meshUpdate = MESH_FULL_REBUILD;
@@ -1555,5 +1578,101 @@ void Chunk::update_light_on_destory_luminous(const glm::ivec3& pos, Chunk* neigh
         }
 
         nb->lightUpdate = std::max(nb->lightUpdate, VERTEX_ONLY);
+    }
+}
+
+void Chunk::create_tree(const glm::ivec3& pos)
+{
+    // pos: 数组索引空间 (i, j, k)
+    // i ∈ [0, CHUNK_SIZE)  — Z轴反向
+    // j ∈ [0, CHUNK_SIZE)  — X轴
+    // k ∈ [0, CHUNK_HEIGHT) — Y轴（高度）
+    int ci = pos.x;
+    int cj = pos.y;
+    int ck = pos.z;
+
+    // 基于坐标的确定性哈希，生成树干高度 4~7
+    unsigned int seed = (unsigned int)(ci * 73856093u ^ cj * 19349663u ^ ck * 83492791u);
+    int trunkHeight = 4 + (seed % 4);
+
+    // 检查树干空间
+    if (ck + trunkHeight + 2 >= CHUNK_HEIGHT) return;
+
+    // 放置树干
+    for (int h = 0; h < trunkHeight; h++)
+    {
+        chunkBlocks[ci][cj][ck + h] = WOOD;
+    }
+
+    // 树冠参数：树越高，树冠越大越厚
+    int canopyRadius, canopyBottom;
+    if (trunkHeight >= 7)
+    {
+        canopyRadius = 3;
+        canopyBottom = ck + trunkHeight - 3; // 从树干顶部往下3格开始
+    }
+    else if (trunkHeight >= 5)
+    {
+        canopyRadius = 2;
+        canopyBottom = ck + trunkHeight - 2;
+    }
+    else
+    {
+        canopyRadius = 2;
+        canopyBottom = ck + trunkHeight - 1;
+    }
+
+    int canopyTop = ck + trunkHeight + 1; // 树冠顶部超出树干1格
+
+    // 逐层生成树冠
+    for (int y = canopyBottom; y <= canopyTop; y++)
+    {
+        if (y < 0 || y >= CHUNK_HEIGHT) continue;
+
+        // 距树冠顶部的层数，用于收缩半径
+        int distFromTop = canopyTop - y;
+        int layerRadius;
+
+        if (distFromTop == 0)
+        {
+            // 最顶层：仅十字形
+            layerRadius = 1;
+        }
+        else if (distFromTop == 1)
+        {
+            // 次顶层
+            layerRadius = canopyRadius - 1;
+        }
+        else
+        {
+            // 下部各层：完整半径
+            layerRadius = canopyRadius;
+        }
+
+        for (int di = -layerRadius; di <= layerRadius; di++)
+        {
+            for (int dj = -layerRadius; dj <= layerRadius; dj++)
+            {
+                // 去四角，使形状更圆
+                if (abs(di) == layerRadius && abs(dj) == layerRadius) continue;
+
+                // 最顶层进一步裁剪为十字
+                if (distFromTop == 0 && abs(di) + abs(dj) > 1) continue;
+
+                // 跳过树干位置（树干范围内的层）
+                if (di == 0 && dj == 0 && y < ck + trunkHeight) continue;
+
+                int ni = ci + di;
+                int nj = cj + dj;
+
+                // 超出区块边界则跳过
+                if (ni < 0 || ni >= CHUNK_SIZE || nj < 0 || nj >= CHUNK_SIZE) continue;
+
+                // 已有非空气方块则跳过
+                if (chunkBlocks[ni][nj][y] != AIR) continue;
+
+                chunkBlocks[ni][nj][y] = LEAF;
+            }
+        }
     }
 }

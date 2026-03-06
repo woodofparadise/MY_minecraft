@@ -5,7 +5,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-#define BLOCK_TYPE_NUM 13
+#define BLOCK_TYPE_NUM 14
 
 enum BLOCK_TYPE
 {
@@ -21,7 +21,8 @@ enum BLOCK_TYPE
 	IRON,
 	GOLD,
 	DIAMOND,
-	TORCH
+	TORCH,
+	LEAF
 };
 
 struct Block
