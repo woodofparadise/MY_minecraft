@@ -241,9 +241,6 @@ Chunk::Chunk(PerlinNoise& perlinNoise, int x, int y)
         }
     }
 
-    // 初始化天空光照
-    init_local_light();
-
     // 生成树木：噪声控制区域密度 + 坐标哈希控制个体间距
     for (int i = 1; i < CHUNK_SIZE-1; i++)
     {
@@ -252,7 +249,7 @@ Chunk::Chunk(PerlinNoise& perlinNoise, int x, int y)
             int ai = CHUNK_SIZE - 1 - i; // 数组第一维索引
             int surfaceK = heightMap[ai][j];
             // 地表必须是草地且高于水面
-            if (surfaceK <= waterLevel || chunkBlocks[ai][j][surfaceK] != GRASS || skyLights[lightIdx(ai, j, surfaceK+1)] < 14) continue;
+            if (surfaceK <= waterLevel || chunkBlocks[ai][j][surfaceK] != GRASS) continue;
 
             // 用独立频率的噪声采样树木密度（偏移 1000 避免与地形相关）
             int wx = x * CHUNK_SIZE + j, wz = y * CHUNK_SIZE + i;
@@ -266,6 +263,9 @@ Chunk::Chunk(PerlinNoise& perlinNoise, int x, int y)
             create_tree({ai, j, surfaceK + 1});
         }
     }
+
+    // 初始化光照
+    init_local_light();
 
     // 预计算方块纹理坐标
     sideTexCoords = new glm::vec2[BLOCK_TYPE_NUM];
