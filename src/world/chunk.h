@@ -106,6 +106,7 @@ class Chunk
         // 增量方块光更新（火把等发光方块，支持跨区块传播）
         void update_light_on_create_luminous(const glm::ivec3& pos, BLOCK_TYPE blockType, Chunk* neighbours[4]);
         void update_light_on_destory_luminous(const glm::ivec3& pos, Chunk* neighbours[4]);
+        void refill_block_light(const glm::ivec3& pos, Chunk* neighbours[4]);
 
         // 在指定位置生成一棵树（pos 为数组索引空间）
         void create_tree(const glm::ivec3& pos);

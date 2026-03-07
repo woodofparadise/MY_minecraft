@@ -562,6 +562,15 @@ bool Chunk::set_block(int x, int y, int z, BLOCK_TYPE blockType, Chunk* neighbou
     if(get_block_luminous(blockType) > 0)
         update_light_on_create_luminous({i, j, z}, blockType, neighbours);
 
+    // 非发光方块的不透明度变化：更新受影响的 blockLights 传播路径
+    if(get_block_luminous(oldType) <= 0 && get_block_luminous(blockType) <= 0
+       && get_opacity(blockType) != get_opacity(oldType))
+    {
+        update_light_on_destory_luminous({i, j, z}, neighbours);
+        if(isDestroy)
+            refill_block_light({i, j, z}, neighbours);
+    }
+
     // 天空光通道：仅当方块不透明度变化时才触发 skyLights 更新
     // 透光方块互换（如 AIR↔TORCH）不影响 skyLights，跳过代价高昂的边界传播
     if(get_opacity(blockType) != get_opacity(oldType))
@@ -1578,6 +1587,100 @@ void Chunk::update_light_on_destory_luminous(const glm::ivec3& pos, Chunk* neigh
         }
 
         nb->lightUpdate = std::max(nb->lightUpdate, VERTEX_ONLY);
+    }
+}
+
+void Chunk::refill_block_light(const glm::ivec3& pos, Chunk* neighbours[4])
+{
+    // 破坏不透明方块后，从周围有 blockLight 的邻居重新填充并向外传播
+    int opacity = get_opacity(chunkBlocks[pos.x][pos.y][pos.z]);
+    short maxIncoming = 0;
+
+    for(int d = 0; d < 6; d++)
+    {
+        glm::ivec3 nb = pos + arrayOffset[d];
+        short nbl = 0;
+        if(is_valid_index(nb))
+            nbl = blockLights[lightIdx(nb.x, nb.y, nb.z)];
+        else
+        {
+            glm::ivec3 nbPos;
+            int nbIdx = resolve_cross_chunk(nb, nbPos);
+            if(nbIdx >= 0 && neighbours[nbIdx])
+                nbl = neighbours[nbIdx]->blockLights[lightIdx(nbPos.x, nbPos.y, nbPos.z)];
+        }
+        short incoming = nbl - opacity;
+        if(incoming > maxIncoming) maxIncoming = incoming;
+    }
+
+    if(maxIncoming <= 0) return;
+
+    blockLights[lightIdx(pos.x, pos.y, pos.z)] = maxIncoming;
+
+    // BFS 向外传播（与 update_light_on_create_luminous 相同模式）
+    std::queue<glm::ivec3> lightBFS;
+    lightBFS.push(pos);
+    std::queue<glm::ivec3> nbSeeds[4];
+
+    while(!lightBFS.empty())
+    {
+        glm::ivec3 local = lightBFS.front();
+        lightBFS.pop();
+        short localLight = blockLights[lightIdx(local.x, local.y, local.z)];
+
+        for(int d = 0; d < 6; ++d)
+        {
+            glm::ivec3 temp = local + arrayOffset[d];
+            if(is_valid_index(temp))
+            {
+                if(blockLights[lightIdx(temp.x, temp.y, temp.z)] >= localLight)
+                    continue;
+                int dec = get_opacity(chunkBlocks[temp.x][temp.y][temp.z]);
+                short newLight = localLight - dec;
+                if(newLight <= 0) continue;
+                if(newLight <= blockLights[lightIdx(temp.x, temp.y, temp.z)]) continue;
+                blockLights[lightIdx(temp.x, temp.y, temp.z)] = newLight;
+                lightBFS.push(temp);
+            }
+            else
+            {
+                glm::ivec3 nbPos;
+                int nbIdx = resolve_cross_chunk(temp, nbPos);
+                if(nbIdx < 0 || !neighbours[nbIdx]) continue;
+                Chunk* nb2 = neighbours[nbIdx];
+                int dec = get_opacity(nb2->chunkBlocks[nbPos.x][nbPos.y][nbPos.z]);
+                short newLight = localLight - dec;
+                if(newLight <= 0) continue;
+                if(newLight <= nb2->blockLights[lightIdx(nbPos.x, nbPos.y, nbPos.z)]) continue;
+                nb2->blockLights[lightIdx(nbPos.x, nbPos.y, nbPos.z)] = newLight;
+                nbSeeds[nbIdx].push(nbPos);
+            }
+        }
+    }
+
+    for(int n = 0; n < 4; n++)
+    {
+        if(nbSeeds[n].empty() || !neighbours[n]) continue;
+        Chunk* nb2 = neighbours[n];
+        while(!nbSeeds[n].empty())
+        {
+            glm::ivec3 local = nbSeeds[n].front();
+            nbSeeds[n].pop();
+            short localLight = nb2->blockLights[lightIdx(local.x, local.y, local.z)];
+            for(int d = 0; d < 6; ++d)
+            {
+                glm::ivec3 temp = local + arrayOffset[d];
+                if(!is_valid_index(temp)) continue;
+                if(nb2->blockLights[lightIdx(temp.x, temp.y, temp.z)] >= localLight) continue;
+                int dec = get_opacity(nb2->chunkBlocks[temp.x][temp.y][temp.z]);
+                short newLight = localLight - dec;
+                if(newLight <= 0) continue;
+                if(newLight <= nb2->blockLights[lightIdx(temp.x, temp.y, temp.z)]) continue;
+                nb2->blockLights[lightIdx(temp.x, temp.y, temp.z)] = newLight;
+                nbSeeds[n].push(temp);
+            }
+        }
+        nb2->lightUpdate = std::max(nb2->lightUpdate, VERTEX_ONLY);
     }
 }
 
